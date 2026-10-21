@@ -21,7 +21,7 @@ STAGES = [
     ('5_Acceptance', 'Принятие. Часы 00:00, фигура у входной двери. Выбор: уйти или остаться (неделя 6).', False),
 ]
 
-EXPOSURE_BIAS = -3.0  # EV of the manual exposure volume; the flashlight (EndlessCharacter.cpp) is tuned to it
+EXPOSURE_BIAS = -3.0  # EV of the manual exposure volume
 
 LIGHT_ROWS = [  # intensity multiplier, Kelvin, flicker share
     (1.0, 2700, 0.0),
@@ -155,7 +155,7 @@ def run():
                                          text('Sign5', 'ПОРА', 594, -586, 237, 90, 20, GREY, f)])
 
     # Fixed exposure: auto exposure would brighten the dark stages back up. -3 EV keeps stage 0 readable
-    # and stage 4 (lamps x0.12) dark enough that the flashlight matters.
+    # and stage 4 (lamps x0.12) dark: there is no flashlight, the player wanders in the dark.
     pp = spawn('/Script/Engine.PostProcessVolume', 'PP_ManualExposure', 600, 300, 300, 'Stages')
     props(pp, {'bUnbound': True, 'Settings': {
         'bOverride_AutoExposureMethod': True, 'AutoExposureMethod': 'AEM_Manual',

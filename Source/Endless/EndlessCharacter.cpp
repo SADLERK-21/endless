@@ -3,7 +3,6 @@
 #include "Interactable.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
-#include "Components/SpotLightComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "EnhancedInputComponent.h"
@@ -21,15 +20,6 @@ AEndlessCharacter::AEndlessCharacter()
 	Camera->SetupAttachment(GetCapsuleComponent());
 	Camera->SetRelativeLocation(FVector(0.f, 0.f, 64.f));
 	Camera->bUsePawnControlRotation = true;
-
-	Flashlight = CreateDefaultSubobject<USpotLightComponent>(TEXT("Flashlight"));
-	Flashlight->SetupAttachment(Camera);
-	Flashlight->SetRelativeLocation(FVector(10.f, 15.f, -10.f));
-	Flashlight->SetInnerConeAngle(12.f);
-	Flashlight->SetOuterConeAngle(28.f);
-	Flashlight->SetAttenuationRadius(1500.f);
-	Flashlight->SetIntensity(40000.f); // tuned for the level's manual exposure (-3 EV), where 5000 barely shows
-	Flashlight->SetVisibility(false);
 }
 
 void AEndlessCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -45,7 +35,6 @@ void AEndlessCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 	MoveAction = MakeAction(EInputActionValueType::Axis2D);
 	LookAction = MakeAction(EInputActionValueType::Axis2D);
 	InteractAction = MakeAction(EInputActionValueType::Boolean);
-	FlashlightAction = MakeAction(EInputActionValueType::Boolean);
 
 	MappingContext = NewObject<UInputMappingContext>(this);
 	// D = +X, A = -X, W = +Y (swizzle), S = -Y (swizzle + negate)
@@ -62,7 +51,6 @@ void AEndlessCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 	MappingContext->MapKey(LookAction, EKeys::Mouse2D).Modifiers.Add(InvertY);
 
 	MappingContext->MapKey(InteractAction, EKeys::E);
-	MappingContext->MapKey(FlashlightAction, EKeys::F);
 
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))
 	{
@@ -81,7 +69,6 @@ void AEndlessCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 	Input->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AEndlessCharacter::Move);
 	Input->BindAction(LookAction, ETriggerEvent::Triggered, this, &AEndlessCharacter::Look);
 	Input->BindAction(InteractAction, ETriggerEvent::Started, this, &AEndlessCharacter::Interact);
-	Input->BindAction(FlashlightAction, ETriggerEvent::Started, this, &AEndlessCharacter::ToggleFlashlight);
 }
 
 void AEndlessCharacter::Move(const FInputActionValue& Value)
@@ -112,10 +99,4 @@ void AEndlessCharacter::Interact()
 			IInteractable::Execute_Interact(Target, this);
 		}
 	}
-}
-
-void AEndlessCharacter::ToggleFlashlight()
-{
-	Flashlight->ToggleVisibility();
-	OnFlashlightToggled(Flashlight->IsVisible());
 }
