@@ -21,6 +21,8 @@ STAGES = [
     ('5_Acceptance', 'Принятие. Часы 00:00, фигура у входной двери. Выбор: уйти или остаться (неделя 6).', False),
 ]
 
+EXPOSURE_BIAS = -3.0  # EV of the manual exposure volume; the flashlight (EndlessCharacter.cpp) is tuned to it
+
 LIGHT_ROWS = [  # intensity multiplier, Kelvin, flicker share
     (1.0, 2700, 0.0),
     (0.9, 3200, 0.0),
@@ -151,6 +153,14 @@ def run():
     anomaly('A5_Figure', 5, -1, f, show=[box('Figure_Door', 574, 614, -790, -760, 0, 230, f, black=True),
                                          rim_light('Figure_Door_Rim', 594, -808, 200, f),
                                          text('Sign5', 'ПОРА', 594, -586, 237, 90, 20, GREY, f)])
+
+    # Fixed exposure: auto exposure would brighten the dark stages back up. -3 EV keeps stage 0 readable
+    # and stage 4 (lamps x0.12) dark enough that the flashlight matters.
+    pp = spawn('/Script/Engine.PostProcessVolume', 'PP_ManualExposure', 600, 300, 300, 'Stages')
+    props(pp, {'bUnbound': True, 'Settings': {
+        'bOverride_AutoExposureMethod': True, 'AutoExposureMethod': 'AEM_Manual',
+        'bOverride_AutoExposureApplyPhysicalCameraExposure': True, 'AutoExposureApplyPhysicalCameraExposure': False,
+        'bOverride_AutoExposureBias': True, 'AutoExposureBias': EXPOSURE_BIAS}})
 
     # Rough light script over the apartment lamps only: the figures' rim lights must not dim with the stage
     lamps = execute_tool(S + 'get_actors_in_folder', json.dumps({'folder_path': 'Lights', 'recursive': True}))['returnValue']

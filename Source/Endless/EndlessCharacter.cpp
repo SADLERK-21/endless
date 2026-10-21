@@ -28,6 +28,7 @@ AEndlessCharacter::AEndlessCharacter()
 	Flashlight->SetInnerConeAngle(12.f);
 	Flashlight->SetOuterConeAngle(28.f);
 	Flashlight->SetAttenuationRadius(1500.f);
+	Flashlight->SetIntensity(40000.f); // tuned for the level's manual exposure (-3 EV), where 5000 barely shows
 	Flashlight->SetVisibility(false);
 }
 
