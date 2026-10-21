@@ -10,9 +10,8 @@ O = 'editor_toolset.toolsets.object.ObjectTools.'
 LVL = '/Game/Maps/L_Apartment.L_Apartment:PersistentLevel.'
 MANAGER = {'refPath': LVL + 'LoopManager_UAID_50EBF677B6286D0D03_1474282790'}
 BLACK = '/Engine/EngineDebugMaterials/BlackUnlitMaterial.BlackUnlitMaterial'
-SIGN, CLOCK, LABEL = (150, 10, 10), (255, 40, 30), (255, 220, 80)
-# Unlit: readable at any exposure / stage darkness (playtest 1: grey lit text on grey walls was invisible)
-TEXT_MATERIAL = '/Engine/EngineMaterials/UnlitText.UnlitText'
+# Linear colors (0..1). WorldText glows, so it reads at any stage darkness (playtest 1: grey text was invisible)
+SIGN, CLOCK, LABEL = (0.45, 0.0, 0.0), (1.0, 0.05, 0.03), (1.0, 0.75, 0.15)
 # shortcut: engine/editor sounds stand in for the ring and the hint until real audio (MVP week 5); editor-only content won't cook
 RING = '/Engine/EngineSounds/1kSineTonePing.1kSineTonePing'
 HINT_SOUND = '/Engine/VREditor/Sounds/VR_shep_scale_down_01_Cue.VR_shep_scale_down_01_Cue'
@@ -68,12 +67,9 @@ def box(name, x0, x1, y0, y1, z0, z1, f, black=False):
 
 
 def text(name, s, x, y, z, yaw, size, color, f):
-    # TextRender reads from the actor's +X side: yaw points the text at the viewer
-    a = spawn('/Script/Engine.TextRenderActor', name, x, y, z, f, yaw)
-    props({'refPath': a['refPath'] + '.NewTextRenderComponent'}, {
-        'Text': s, 'WorldSize': size, 'TextMaterial': TEXT_MATERIAL,
-        'HorizontalAlignment': 'EHTA_Center', 'VerticalAlignment': 'EVRTA_TextCenter',
-        'TextRenderColor': {'R': color[0], 'G': color[1], 'B': color[2], 'A': 255}})
+    # WorldText, not TextRender: TextRender's fonts have no Cyrillic. Reads from the actor's +X side.
+    a = spawn('/Script/Endless.WorldText', name, x, y, z, f, yaw)
+    props(a, {'Text': s, 'Size': size, 'Color': {'R': color[0], 'G': color[1], 'B': color[2], 'A': 1.0}})
     return a
 
 

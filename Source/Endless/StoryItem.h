@@ -21,9 +21,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Story")
 	bool bHideOnUse = true;
 
-	// Shown on screen when used: a placeholder for the voiced or scripted story moment.
+	// Shown as a subtitle when used: a placeholder for the voiced or scripted story moment.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Story", meta = (MultiLine = true))
 	FText UseMessage;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Story", meta = (ClampMin = 1))
+	float SubtitleSeconds = 7.f;
 
 	virtual void Interact_Implementation(AActor* Caller) override;
 
@@ -35,6 +38,8 @@ protected:
 	virtual void BeginPlay() override;
 
 private:
+	void ShowSubtitle();
+
 	// Greybox look; swap the mesh in Details.
 	UPROPERTY(VisibleAnywhere, Category = "Story")
 	TObjectPtr<UStaticMeshComponent> Mesh;
