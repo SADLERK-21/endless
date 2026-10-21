@@ -21,6 +21,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Story")
 	bool bHideOnUse = true;
 
+	// Shown on screen when used: a placeholder for the voiced or scripted story moment.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Story", meta = (MultiLine = true))
+	FText UseMessage;
+
 	virtual void Interact_Implementation(AActor* Caller) override;
 
 	// Hook for the story moment: sound, text, light change.
@@ -37,4 +41,6 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<ALoopManager> Manager;
+
+	bool bUsed = false; // a second E on an item that stays (the phone) does nothing
 };

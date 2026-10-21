@@ -10,7 +10,12 @@ O = 'editor_toolset.toolsets.object.ObjectTools.'
 LVL = '/Game/Maps/L_Apartment.L_Apartment:PersistentLevel.'
 MANAGER = {'refPath': LVL + 'LoopManager_UAID_50EBF677B6286D0D03_1474282790'}
 BLACK = '/Engine/EngineDebugMaterials/BlackUnlitMaterial.BlackUnlitMaterial'
-GREY, RED, LABEL = (90, 90, 90), (170, 20, 20), (220, 200, 60)
+SIGN, CLOCK, LABEL = (150, 10, 10), (255, 40, 30), (255, 220, 80)
+# Unlit: readable at any exposure / stage darkness (playtest 1: grey lit text on grey walls was invisible)
+TEXT_MATERIAL = '/Engine/EngineMaterials/UnlitText.UnlitText'
+# shortcut: engine/editor sounds stand in for the ring and the hint until real audio (MVP week 5); editor-only content won't cook
+RING = '/Engine/EngineSounds/1kSineTonePing.1kSineTonePing'
+HINT_SOUND = '/Engine/VREditor/Sounds/VR_shep_scale_down_01_Cue.VR_shep_scale_down_01_Cue'
 
 STAGES = [
     ('0_Home', 'Дом. Норма, игрок запоминает квартиру. Часы у кровати стоят на 23:59.', False),
@@ -66,7 +71,8 @@ def text(name, s, x, y, z, yaw, size, color, f):
     # TextRender reads from the actor's +X side: yaw points the text at the viewer
     a = spawn('/Script/Engine.TextRenderActor', name, x, y, z, f, yaw)
     props({'refPath': a['refPath'] + '.NewTextRenderComponent'}, {
-        'Text': s, 'WorldSize': size, 'HorizontalAlignment': 'EHTA_Center', 'VerticalAlignment': 'EVRTA_TextCenter',
+        'Text': s, 'WorldSize': size, 'TextMaterial': TEXT_MATERIAL,
+        'HorizontalAlignment': 'EHTA_Center', 'VerticalAlignment': 'EVRTA_TextCenter',
         'TextRenderColor': {'R': color[0], 'G': color[1], 'B': color[2], 'A': 255}})
     return a
 
@@ -106,41 +112,44 @@ def run():
     box('Nightstand', 395, 445, 905, 955, 0, 55, 'Stages/0_Normal')
     box('PhoneTable', 697, 737, 0, 60, 0, 80, 'Stages/0_Normal')
     phone = box('Phone', 705, 725, 20, 40, 80, 90, 'Stages/0_Normal')
-    clock = text('Clock_2359', '23:59', 420, 930, 64, 24, 10, RED, 'Stages/0_Normal')
+    box('Clock_Body', 405, 420, 915, 945, 55, 71, 'Stages/0_Normal')
+    clock = text('Clock_2359', '23:59', 421, 930, 63, 0, 9, CLOCK, 'Stages/0_Normal')
 
     # 1: abandoned hobbies, first faint sign
     f = 'Stages/1_Trifle'
-    s1 = [box('Guitar', 380, 420, -190, -175, 0, 110, f), text('Guitar_Label', 'гитара (пыльная)', 400, -170, 125, 90, 8, LABEL, f),
-          box('ModelKit', 20, 60, 180, 230, 75, 95, f), text('ModelKit_Label', 'недособранная модель', 70, 205, 105, 0, 6, LABEL, f)]
+    s1 = [box('Guitar', 380, 420, -190, -175, 0, 110, f), text('Guitar_Label', 'гитара (пыльная)', 400, -170, 130, 90, 16, LABEL, f),
+          box('ModelKit', 20, 60, 180, 230, 75, 95, f), text('ModelKit_Label', 'недособранная модель', 75, 205, 115, 0, 14, LABEL, f)]
     anomaly('A1_Hobbies', 1, -1, f, show=s1)
-    anomaly('A1_Sign', 1, -1, f, show=[text('Sign1', 'ты не спишь', 600, 714, 150, 90, 10, GREY, f)])
+    anomaly('A1_Sign', 1, -1, f, show=[text('Sign1', 'ты не спишь', 600, 714, 160, 90, 20, SIGN, f)])
 
     # 2: guilt about mom; story item = photo in the kitchen, the sign points there
     f = 'Stages/2_Guilt'
     anomaly('A2_Gift', 2, -1, f, show=[box('Gift', 700, 740, -60, -20, 0, 30, f),
-                                         text('Gift_Label', 'подарок маме', 720, -15, 45, 90, 8, LABEL, f)])
-    anomaly('A2_MissedCalls', 2, 3, f, show=[text('MissedCalls', 'Мама: 12 пропущенных', 735, 30, 110, 180, 8, LABEL, f)])
+                                         text('Gift_Label', 'подарок маме', 720, -15, 50, 90, 16, LABEL, f)])
+    anomaly('A2_MissedCalls', 2, 3, f, show=[text('MissedCalls', 'Мама: 12 пропущенных', 735, 30, 115, 180, 14, LABEL, f)])
     photo = spawn('/Script/Endless.StoryItem', 'Photo', 1000, 100, 100, f)
-    anomaly('A2_Photo', 2, 2, f, show=[photo, text('Photo_Label', 'фото с мамой [E]', 990, 100, 125, 180, 7, LABEL, f)])
+    props(photo, {'UseMessage': 'Фото: мама и я, лет десять назад. На обороте её почерком: «Приезжай, когда сможешь».'})
+    anomaly('A2_Photo', 2, 2, f, show=[photo, text('Photo_Label', 'фото с мамой [E]', 990, 100, 130, 180, 14, LABEL, f)])
     hint2 = spawn('/Script/Endless.StageHint', 'Hint_Kitchen', 900, 60, 150, f)
-    props(hint2, {'Stage': 2, 'MinRepeat': 2})
-    anomaly('A2_Sign', 2, 2, f, show=[text('Sign2', 'загляни на кухню', 736, 120, 160, 180, 14, GREY, f)])
+    props(hint2, {'Stage': 2, 'MinRepeat': 2, 'Sound': HINT_SOUND})
+    anomaly('A2_Sign', 2, 2, f, show=[text('Sign2', 'загляни на кухню', 736, 120, 170, 180, 24, SIGN, f)])
 
     # 3: the hospital leaks in; signs lead to the front door
     f = 'Stages/3_ICU'
     anomaly('A3_IV', 3, -1, f, show=[box('IV_Pole', 630, 640, 930, 940, 0, 180, f), box('IV_Bag', 622, 648, 925, 945, 160, 190, f),
-                                       text('IV_Label', 'капельница', 635, 950, 205, 0, 8, LABEL, f)])
+                                       text('IV_Label', 'капельница', 635, 950, 210, 0, 16, LABEL, f)])
     anomaly('A3_Water', 3, 4, f, show=[box('Puddle', 95, 180, 760, 830, 0, 0.5, f)])
-    anomaly('A3_Sign', 3, -1, f, show=[text('Sign3', 'иди к двери', 293, 500, 160, 0, 14, GREY, f)])
+    anomaly('A3_Sign', 3, -1, f, show=[text('Sign3', 'иди к двери', 293, 500, 170, 0, 30, SIGN, f)])
 
     # 4: the apartment breaks; story item = answer mom's call; the figure shows up for the first time
     f = 'Stages/4_Forgiveness'
     phone_item = spawn('/Script/Endless.StoryItem', 'Phone_Ringing', 715, 30, 92, f)
-    props(phone_item, {'bHideOnUse': False})
-    anomaly('A4_Call', 4, 4, f, hide=[phone], show=[phone_item, text('Sign4', 'ОТВЕТЬ', 736, 30, 170, 180, 22, RED, f),
-                                                      text('Phone_Label', 'звонит: Мама [E]', 735, 30, 115, 180, 7, LABEL, f)])
+    props(phone_item, {'bHideOnUse': False,
+                       'UseMessage': 'Мама: «Сынок? Ты меня слышишь? Я здесь, рядом…»  [заглушка: озвученный разговор — неделя 5]'})
+    anomaly('A4_Call', 4, 4, f, hide=[phone], show=[phone_item, text('Sign4', 'ОТВЕТЬ', 736, 30, 180, 180, 30, SIGN, f),
+                                                      text('Phone_Label', 'звонит: Мама [E]', 735, 30, 120, 180, 14, LABEL, f)])
     hint4 = spawn('/Script/Endless.StageHint', 'Hint_Phone', 715, 30, 150, f)
-    props(hint4, {'Stage': 4, 'MinRepeat': 1})
+    props(hint4, {'Stage': 4, 'MinRepeat': 0, 'Sound': RING, 'Interval': 2.5})  # the phone rings from the stage start
     anomaly('A4_Moved', 4, 4, f, hide=[bed, wardrobe], show=[box('Bed_Moved', 1050, 1267.5, 1080, 1219.5, 0, 55, f),
                                                              box('Wardrobe_Moved', 250, 310, 0, 110, 0, 220, f)])
     # Deep in the living room, in line with the upper corridor: seen while walking it toward the living room
@@ -149,10 +158,10 @@ def run():
 
     # 5: acceptance; the clock moves to 00:00, the figure waits on the landing right behind the front door
     f = 'Stages/5_Acceptance'
-    anomaly('A5_Clock', 5, -1, f, hide=[clock], show=[text('Clock_0000', '00:00', 420, 930, 64, 24, 10, RED, f)])
+    anomaly('A5_Clock', 5, -1, f, hide=[clock], show=[text('Clock_0000', '00:00', 421, 930, 63, 0, 9, CLOCK, f)])
     anomaly('A5_Figure', 5, -1, f, show=[box('Figure_Door', 574, 614, -790, -760, 0, 230, f, black=True),
                                          rim_light('Figure_Door_Rim', 594, -808, 200, f),
-                                         text('Sign5', 'ПОРА', 594, -586, 237, 90, 20, GREY, f)])
+                                         text('Sign5', 'ПОРА', 594, -586, 237, 90, 30, SIGN, f)])
 
     # Fixed exposure: auto exposure would brighten the dark stages back up. -3 EV keeps stage 0 readable
     # and stage 4 (lamps x0.12) dark: there is no flashlight, the player wanders in the dark.

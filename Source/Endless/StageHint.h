@@ -9,6 +9,7 @@ class USoundBase;
 
 // Helps a stuck player: place it in the room where the story item is. When the locked Stage repeats
 // MinRepeat times without the objective, the Sound plays here every Interval seconds until the item is found.
+// MinRepeat = 0 starts it with the stage itself: a ringing phone.
 UCLASS()
 class ENDLESS_API AStageHint : public AActor
 {
@@ -20,8 +21,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Hint", meta = (ClampMin = 0))
 	int32 Stage = 2;
 
-	// Repeats of the stage before the hint starts. 1 = on the first repeat.
-	UPROPERTY(EditAnywhere, Category = "Hint", meta = (ClampMin = 1))
+	// Repeats of the stage before the hint starts. 1 = on the first repeat, 0 = as soon as the stage starts.
+	UPROPERTY(EditAnywhere, Category = "Hint", meta = (ClampMin = 0))
 	int32 MinRepeat = 2;
 
 	UPROPERTY(EditAnywhere, Category = "Hint")
@@ -44,6 +45,7 @@ private:
 	UFUNCTION()
 	void OnStageStarted(int32 InStage);
 
+	void StartHint();
 	void PlayHint();
 
 	UPROPERTY(Transient)

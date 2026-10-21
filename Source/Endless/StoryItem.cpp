@@ -3,6 +3,7 @@
 #include "LoopManager.h"
 #include "EngineUtils.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/Engine.h"
 #include "Engine/StaticMesh.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -29,10 +30,11 @@ void AStoryItem::BeginPlay()
 
 void AStoryItem::Interact_Implementation(AActor* Caller)
 {
-	if (!Manager)
+	if (!Manager || bUsed)
 	{
 		return;
 	}
+	bUsed = true;
 	Manager->CompleteObjective();
 	UE_LOG(LogEndless, Log, TEXT("%s used: stage %d objective done"), *GetActorNameOrLabel(), Manager->CurrentStage);
 	if (bHideOnUse)
@@ -40,5 +42,12 @@ void AStoryItem::Interact_Implementation(AActor* Caller)
 		SetActorHiddenInGame(true);
 		SetActorEnableCollision(false);
 	}
+#if !UE_BUILD_SHIPPING
+	if (GEngine && !UseMessage.IsEmpty())
+	{
+		// shortcut: debug text stands in for the story moment until voice / UI exist (MVP week 5)
+		GEngine->AddOnScreenDebugMessage(-1, 6.f, FColor::White, UseMessage.ToString());
+	}
+#endif
 	OnUsed();
 }

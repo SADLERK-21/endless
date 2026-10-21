@@ -25,6 +25,7 @@ void AStageHint::BeginPlay()
 	}
 	Manager->OnStageRepeated.AddDynamic(this, &AStageHint::OnStageRepeated);
 	Manager->OnStageStarted.AddDynamic(this, &AStageHint::OnStageStarted);
+	OnStageStarted(Manager->CurrentStage); // the manager may have started its first stage before we bound
 }
 
 void AStageHint::OnStageRepeated(int32 InStage, int32 RepeatCount)
@@ -34,15 +35,25 @@ void AStageHint::OnStageRepeated(int32 InStage, int32 RepeatCount)
 		return;
 	}
 	OnHintStarted(RepeatCount);
-	if (!GetWorldTimerManager().IsTimerActive(Timer))
-	{
-		GetWorldTimerManager().SetTimer(Timer, this, &AStageHint::PlayHint, Interval, true, 1.f); // first one right after waking up
-	}
+	StartHint();
 }
 
 void AStageHint::OnStageStarted(int32 InStage)
 {
 	GetWorldTimerManager().ClearTimer(Timer);
+	if (InStage == Stage && MinRepeat == 0)
+	{
+		OnHintStarted(0);
+		StartHint();
+	}
+}
+
+void AStageHint::StartHint()
+{
+	if (!GetWorldTimerManager().IsTimerActive(Timer))
+	{
+		GetWorldTimerManager().SetTimer(Timer, this, &AStageHint::PlayHint, Interval, true, 1.f); // first one right after waking up
+	}
 }
 
 void AStageHint::PlayHint()
