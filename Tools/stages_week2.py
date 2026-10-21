@@ -17,7 +17,7 @@ STAGES = [
     ('1_Trifle', 'Мелочь. Заброшенные хобби: гитара, модель. Первая еле заметная надпись. (Звонок с писком монитора: неделя 5)', False),
     ('2_Guilt', 'Вина. Подарок маме, пропущенные звонки. Деталь: фото с мамой на кухне. Надпись ведёт на кухню.', True),
     ('3_ICU', 'Реанимация. Капельница у кровати, вода у уборной. Надписи ведут к двери. Свет мигает. (Звонок врачей: неделя 5)', False),
-    ('4_Forgiveness', 'Прощение. Мебель сдвинута, фигура в конце коридора. Деталь: ответить на звонок мамы. Почти темно.', True),
+    ('4_Forgiveness', 'Прощение. Мебель сдвинута, фигура в глубине гостиной. Деталь: ответить на звонок мамы. Почти темно.', True),
     ('5_Acceptance', 'Принятие. Часы 00:00, фигура у входной двери. Выбор: уйти или остаться (неделя 6).', False),
 ]
 
@@ -67,6 +67,13 @@ def text(name, s, x, y, z, yaw, size, color, f):
         'Text': s, 'WorldSize': size, 'HorizontalAlignment': 'EHTA_Center', 'VerticalAlignment': 'EVRTA_TextCenter',
         'TextRenderColor': {'R': color[0], 'G': color[1], 'B': color[2], 'A': 255}})
     return a
+
+
+def rim_light(name, x, y, z, f):
+    # The figure is unlit black: it only reads as a silhouette against a lit wall behind it
+    l = spawn('/Script/Engine.PointLight', name, x, y, z, f)
+    props({'refPath': l['refPath'] + '.LightComponent0'}, {'Mobility': 'Movable', 'Intensity': 6, 'AttenuationRadius': 300})
+    return l
 
 
 def anomaly(name, first, last, f, show=(), hide=()):
@@ -134,17 +141,22 @@ def run():
     props(hint4, {'Stage': 4, 'MinRepeat': 1})
     anomaly('A4_Moved', 4, 4, f, hide=[bed, wardrobe], show=[box('Bed_Moved', 1050, 1267.5, 1080, 1219.5, 0, 55, f),
                                                              box('Wardrobe_Moved', 250, 310, 0, 110, 0, 220, f)])
-    anomaly('A4_Figure', 4, 4, f, show=[box('Figure_Corridor', 15, 55, 740, 800, 0, 220, f, black=True)])
+    # Deep in the living room, in line with the upper corridor: seen while walking it toward the living room
+    anomaly('A4_Figure', 4, 4, f, show=[box('Figure_Living', 327, 367, -120, -80, 0, 220, f, black=True),
+                                        rim_light('Figure_Living_Rim', 347, -175, 200, f)])
 
-    # 5: acceptance; the clock moves to 00:00, the figure waits on the landing behind the front door
+    # 5: acceptance; the clock moves to 00:00, the figure waits on the landing right behind the front door
     f = 'Stages/5_Acceptance'
     anomaly('A5_Clock', 5, -1, f, hide=[clock], show=[text('Clock_0000', '00:00', 420, 930, 64, 24, 10, RED, f)])
-    anomaly('A5_Figure', 5, -1, f, show=[box('Figure_Door', 440, 480, -720, -680, 0, 230, f, black=True),
+    anomaly('A5_Figure', 5, -1, f, show=[box('Figure_Door', 574, 614, -790, -760, 0, 230, f, black=True),
+                                         rim_light('Figure_Door_Rim', 594, -808, 200, f),
                                          text('Sign5', 'ПОРА', 594, -586, 237, 90, 20, GREY, f)])
 
-    # Rough light script, all lamps
+    # Rough light script over the apartment lamps only: the figures' rim lights must not dim with the stage
+    lamps = execute_tool(S + 'get_actors_in_folder', json.dumps({'folder_path': 'Lights', 'recursive': True}))['returnValue']
     lighting = spawn('/Script/Endless.StageLighting', 'StageLighting', 600, 300, 250, 'Stages')
-    props(lighting, {'Stages': [{'Intensity': i, 'Temperature': t, 'Flicker': fl} for i, t, fl in LIGHT_ROWS]})
+    props(lighting, {'Stages': [{'Intensity': i, 'Temperature': t, 'Flicker': fl} for i, t, fl in LIGHT_ROWS],
+                     'Lights': [l['refPath'] for l in lamps]})
 
     props(MANAGER, {'Stages': [{'Name': n, 'DesignNote': d, 'bRequiresObjective': r} for n, d, r in STAGES]})
-    return {'removed': removed}
+    return {'removed': removed, 'lamps': len(lamps)}
