@@ -3,6 +3,7 @@
 # Deletes every actor in the Blockout and Lights outliner folders, builds them again, and moves the Loop actors
 # (LoopManager, PlayerStart, LoopDoor, LoopExit) to match. Returns any static blocker found on the route.
 import json
+import math
 
 H = 270            # wall height, cm
 K = 1.5            # cm per pixel of the user's plan
@@ -13,6 +14,7 @@ ROOM_EXTRA = 200   # living / hallway / kitchen deeper: their top wall (plan y=2
 VEST_EXTRA = 200   # vestibule to the front door longer: plan y=73 moves up more
 BATH_EXTRA = 100   # bathroom wider: lower-block points right of plan x=380 move right
 BED_EXTRA = 200    # bedroom and lower corridor wider: lower-block points from plan x=695 move right again
+BED_DOOR_FROM_END = 90  # bedroom door center, cm from the right end of the lower corridor
 
 S = 'editor_toolset.toolsets.scene.SceneTools.'
 A = 'editor_toolset.toolsets.actor.ActorTools.'
@@ -23,6 +25,8 @@ MANAGER = LVL + 'LoopManager_UAID_50EBF677B6286D0D03_1474282790'
 PLAYER_START = LVL + 'PlayerStart_UAID_50EBF677B6286D0D03_1473898789'
 FRONT_DOOR = LVL + 'LoopDoor_UAID_50EBF677B6286E0D03_1713365970'
 LOOP_EXIT = LVL + 'LoopExit_UAID_50EBF677B6286D0D03_1474577791'
+WALLS = []  # (orient, line, start, end, name) of every wall, for the loose-end check
+FREE_ENDS = {'W_Nook start'}  # wall ends that stand free on purpose
 
 
 def X(px):
@@ -93,6 +97,7 @@ def spans(a0, a1, gaps):
 
 def vwall(name, px, py0, py1, gaps=(), t=20, xf=X):
     x = xf(px)
+    WALLS.append(('v', x, Y(py0) - t / 2, Y(py1) + t / 2, name))
     for i, (a, b) in enumerate(spans(Y(py0) - t / 2, Y(py1) + t / 2, gaps)):
         box('%s_%d' % (name, i), x - t / 2, x + t / 2, a, b)
     for c in gaps:
@@ -101,6 +106,7 @@ def vwall(name, px, py0, py1, gaps=(), t=20, xf=X):
 
 def hwall(name, py, px0, px1, gaps=(), t=20, xf=X):
     y = Y(py)
+    WALLS.append(('h', y, xf(px0) - t / 2, xf(px1) + t / 2, name))
     for i, (a, b) in enumerate(spans(xf(px0) - t / 2, xf(px1) + t / 2, gaps)):
         box('%s_%d' % (name, i), a, b, y - t / 2, y + t / 2)
     for c in gaps:
@@ -111,6 +117,19 @@ def blockers(x0, x1, y0, y1):
     r = execute_tool(S + 'find_actors', json.dumps({'name': '', 'tag': '', 'collision_channels': ['ObjectTypeQuery1'],
         'bounds': {'min': {'x': x0, 'y': y0, 'z': 10}, 'max': {'x': x1, 'y': y1, 'z': 200}, 'isValid': True}}))['returnValue']
     return [a['refPath'].split('.')[-1] for a in r]
+
+
+def loose_ends():
+    # Each wall end must overlap some other wall: a lone end means a hole in the apartment
+    bad = []
+    for orient, line, a0, a1, name in WALLS:
+        for end, sign, tag in ((a0, -1, 'start'), (a1, 1, 'end')):
+            lo, hi = sorted((end - sign * 5, end + sign * 15))
+            zone = (line - 3, line + 3, lo, hi) if orient == 'v' else (lo, hi, line - 3, line + 3)
+            label = '%s %s' % (name, tag)
+            if len(blockers(*zone)) < 2 and label not in FREE_ENDS:
+                bad.append(label)
+    return bad
 
 
 def run():
@@ -145,9 +164,11 @@ def run():
     vwall('W_Corr1_R', 472, 413, 540)
     # Lower block: corridor, bathroom, bedroom
     bath_door = (XL(247) + XL(328)) / 2
-    bed_door = (XL(592) + XL(673)) / 2
+    bed_door = XL(695) - BED_DOOR_FROM_END  # far right end of the corridor: longer walk after waking up
     hwall('W_540_L', 540, 197, 385)
-    hwall('W_540_R', 540, 472, 695, xf=XL)
+    # Starts at the upper corridor (plan x=472), which the lower-block shift must not move
+    box('W_540_R', X(472) - 10, XL(695) + 10, Y(540) - 10, Y(540) + 10)
+    WALLS.append(('h', Y(540), X(472) - 10, XL(695) + 10, 'W_540_R'))
     vwall('W_Corr2_R', 695, 540, 628, xf=XL)
     hwall('W_628', 628, 197, 787, gaps=[bath_door, bed_door], xf=XL)
     vwall('W_Bath_Bed', 380, 628, 888, t=25, xf=XL)
@@ -190,8 +211,10 @@ def run():
     # Loop actors: door hinge on the left jamb (panel along +X), exit trigger on the landing, wake-up by the bed
     place(FRONT_DOOR, 544, fy, 0, -90)
     place(LOOP_EXIT, 594, fy - 90, 0, -90)
-    place(MANAGER, XL(565), Y(760), 0, -70)
-    place(PLAYER_START, XL(565), Y(760), 100, -70)
+    wake_x, wake_y = XL(565), Y(760)
+    wake_yaw = math.degrees(math.atan2(Y(628) - wake_y, bed_door - wake_x))  # face the bedroom door
+    place(MANAGER, wake_x, wake_y, 0, wake_yaw)
+    place(PLAYER_START, wake_x, wake_y, 100, wake_yaw)
 
     # Passability: a 90cm path (capsule is 80) through every opening on the route must hit nothing static
     lh = (Y(318) + Y(362)) / 2
@@ -207,5 +230,5 @@ def run():
         'FrontDoorFrame': (549, 639, fy - 13, fy + 13),
     }
     blocked = {k: v for k, v in ((k, blockers(*z)) for k, z in zones.items()) if v}
-    return {'removed': removed, 'bath_width': XL(380) - X(197), 'bedroom_width': XL(787) - XL(380),
+    return {'removed': removed, 'loose_ends': loose_ends(), 'bed_door_x': bed_door, 'wake_yaw': wake_yaw, 'bath_width': XL(380) - X(197), 'bedroom_width': XL(787) - XL(380),
             'corridor2_length': XL(695) - X(197), 'blocked': blocked}
