@@ -26,6 +26,7 @@ STAGES = [
 ]
 
 EXPOSURE_BIAS = -3.0  # EV of the manual exposure volume
+TEXT_GLOW = 2 ** -EXPOSURE_BIAS  # WorldText emissive boost that cancels the exposure: x8 at -3 EV
 
 LIGHT_ROWS = [  # intensity multiplier, Kelvin, flicker share
     (1.0, 2700, 0.0),
@@ -70,6 +71,7 @@ def text(name, s, x, y, z, yaw, size, color, f):
     # WorldText, not TextRender: TextRender's fonts have no Cyrillic. Reads from the actor's +X side.
     a = spawn('/Script/Endless.WorldText', name, x, y, z, f, yaw)
     props(a, {'Text': s, 'Size': size, 'Color': {'R': color[0], 'G': color[1], 'B': color[2], 'A': 1.0}})
+    props({'refPath': a['refPath'] + '.Widget'}, {'TintColorAndOpacity': {'R': TEXT_GLOW, 'G': TEXT_GLOW, 'B': TEXT_GLOW, 'A': 1.0}})
     return a
 
 
