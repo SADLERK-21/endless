@@ -26,7 +26,7 @@
 
 - [x] **Visual Studio 2022** (Community): workload *Game development with C++* + *.NET desktop development*.
 - [x] Двойной клик по `Endless.uproject` → «Rebuild now? → Yes».
-- [ ] git + GitHub (`.gitignore` уже есть), Git LFS для ассетов.
+- [x] git + GitHub (`.gitignore` уже есть), Git LFS для ассетов.
 
 ## Неделя 1 — Greybox и петля ⟶ **M1: «Петля работает»**
 
