@@ -15,5 +15,7 @@
 1. `LoopManager` на пол у кровати: здесь игрок просыпается, лицом по стрелке. В Details заполнить `Stages`.
 2. `LoopDoor` во входной двери (открывается на E), `LoopExit` сразу за ней: шаг в него = затемнение и пробуждение.
 3. Для каждого изменения квартиры: `Anomaly` с `FirstStage` / `LastStage` и списками `ShowWhenActive` / `HideWhenActive`. Для эскалации — BP-наследник с `OnStageChanged`.
-4. Сюжетный предмет: BP с интерфейсом `Interactable`, в `Interact` вызвать `LoopManager → CompleteObjective`.
-5. Свет и события этапов: Level Blueprint, `OnStageStarted` / `OnStageRepeated` / `OnFinale`.
+4. Сюжетный предмет: `StoryItem` (E = `CompleteObjective`), положить в `ShowWhenActive` аномалии своего этапа. Рядом `StageHint` — подсказка застрявшему.
+5. Свет по этапам: один `StageLighting` с таблицей `Stages`. Скриптовые события: Level Blueprint, `OnStageStarted` / `OnStageRepeated` / `OnFinale`.
+
+Квартира и этапы собираются скриптами через unreal-mcp: `Tools/blockout_apartment.py` (стены, свет, Loop-акторы), затем `Tools/stages_week2.py` (заглушки этапов). Каждый пересобирает только свои папки в Outliner.

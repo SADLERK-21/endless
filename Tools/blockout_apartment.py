@@ -55,10 +55,10 @@ def Y(py):
 
 
 def in_folder(f):
-    try:
-        return execute_tool(S + 'get_actors_in_folder', json.dumps({'folder_path': f, 'recursive': True}))['returnValue']
-    except RuntimeError:
+    # get_actors_in_folder fails on a missing folder, and that error can't be caught in the sandbox
+    if f not in execute_tool(S + 'get_folders', '{}')['returnValue']:
         return []
+    return execute_tool(S + 'get_actors_in_folder', json.dumps({'folder_path': f, 'recursive': True}))['returnValue']
 
 
 def props(a, values):
@@ -183,12 +183,10 @@ def run():
     box('Landing_R', 759, 779, fy - 220, fy, f='Blockout/Landing')
     box('Landing_Back', 409, 779, fy - 240, fy - 220, f='Blockout/Landing')
 
-    # Furniture landmarks
-    box('Bed', XL(395), XL(540), Y(715), Y(808), 0, 55, f='Blockout/Props')
+    # Furniture landmarks (bed and wardrobe live in stages_week2.py: anomalies move them)
     box('Desk', 10, 70, Y(300), Y(390), 0, 75, f='Blockout/Props')
     box('Kitchen_Counter', X(890) - 70, X(890) - 10, top + 10, Y(400), 0, 90, f='Blockout/Props')
     box('Toilet', 20, 90, Y(840), Y(880), 0, 45, f='Blockout/Props')
-    box('Wardrobe', 677, 737, top + 10, top + 120, 0, 220, f='Blockout/Props')
 
     # Movable lights with short radius: no stationary-overlap limit
     cx = (X(385) + X(472)) / 2
