@@ -8,18 +8,18 @@ MI = 'editor_toolset.toolsets.material_instance.MaterialInstanceTools.'
 FOLDER = '/Game/Endless/Materials'
 PARENT = {'refPath': FOLDER + '/M_WorldAligned.M_WorldAligned'}
 
-# Finish: (Fab folder key, fallback key, tile cm, roughness, tint RGB)
+# Finish: (Fab folder key, fallback key, tile cm, roughness, tint RGB). 'color+relief' takes base color and normal from two sources
 FINISHES = {
-    'MI_Walls_Living':    ('Decorative_Wall_Paint', 'Fresh_Wall_Plaster', 200, 0.8, (1.0, 0.88, 0.72)),
-    'MI_Walls_Bedroom':   ('Decorative_Wall_Paint', 'Fresh_Wall_Plaster', 200, 0.8, (0.72, 0.82, 0.92)),
+    'MI_Walls_Living':    ('Fresh_Wall_Plaster+Decorative_Wall_Paint', 'Fresh_Wall_Plaster', 200, 0.8, (1.0, 0.88, 0.72)),
+    'MI_Walls_Bedroom':   ('Fresh_Wall_Plaster+Decorative_Wall_Paint', 'Fresh_Wall_Plaster', 200, 0.8, (0.72, 0.82, 0.92)),
     'MI_Walls_Hall':      ('Fresh_Wall_Plaster', None, 250, 0.85, (0.82, 0.82, 0.82)),
     'MI_Walls_Kitchen':   ('Fresh_Wall_Plaster', None, 250, 0.85, (1.0, 1.0, 1.0)),
-    'MI_Walls_Bath':      ('Ceramic_Tiles', 'Fresh_Wall_Plaster', 120, 0.3, (1.0, 1.0, 1.0)),
-    'MI_Walls_Corridor':  ('Framed_Wallpaper', 'Old_Wallpaper', 150, 0.8, (1.0, 0.92, 0.75)),
+    'MI_Walls_Bath':      ('Tiles_06/', 'Fresh_Wall_Plaster', 60, 0.3, (1.0, 1.0, 1.0)),  # blue-green squares
+    'MI_Walls_Corridor':  ('Framed_Wallpaper', 'Old_Wallpaper', 270, 0.8, (1.0, 0.92, 0.75)),  # one repeat per wall height: a single dado rail
     'MI_Wallpaper':       ('Old_Wallpaper', None, 150, 0.8, (1.0, 1.0, 1.0)),  # nook: the old green wallpaper
     'MI_Floor_Living':    ('Wooden_Floor', 'Herringbone_Parquet', 200, 0.45, (1.0, 1.0, 1.0)),
     'MI_Floor_Bedroom':   ('Wooden_Floor', 'Herringbone_Parquet', 200, 0.45, (0.7, 0.6, 0.5)),
-    'MI_Floor_Tiles':     ('Ceramic_Tiles', 'Fresh_Wall_Plaster', 120, 0.35, (0.9, 0.9, 0.9)),
+    'MI_Floor_Tiles':     ('Tiles_07/', 'Fresh_Wall_Plaster', 90, 0.35, (1.0, 1.0, 1.0)),  # patterned cement-look
     'MI_Floor_Bath':      ('Seychelles', 'Fresh_Wall_Plaster', 120, 0.3, (1.0, 1.0, 1.0)),
     'MI_Parquet':         ('Herringbone_Parquet', None, 200, 0.55, (1.0, 1.0, 1.0)),  # corridors, nook
     'MI_Plaster':         ('Fresh_Wall_Plaster', None, 250, 0.9, (1.0, 1.0, 1.0)),  # ceilings, stairwell
@@ -28,16 +28,22 @@ FINISHES = {
 }
 
 
+SOURCES = ('/Game/Fab', '/Game/Materials_CeramicTiles')  # Fab downloads land in /Game/Fab or in their own folder
+
+
 def textures():
-    # Every Fab texture, so finishes can be matched by folder name
-    return execute_tool(AS + 'find_assets', json.dumps({
-        'folder_path': '/Game/Fab', 'name': '', 'asset_type': {'refPath': '/Script/Engine.Texture2D'}, 'recursive': True}))['returnValue']
+    # Every downloaded texture, so finishes can be matched by folder name
+    return [t for f in SOURCES for t in execute_tool(AS + 'find_assets', json.dumps({
+        'folder_path': f, 'name': '', 'asset_type': {'refPath': '/Script/Engine.Texture2D'}, 'recursive': True}))['returnValue']]
 
 
 def pick(all_tex, key):
-    # (base color, normal) for a Fab folder key; Megascans end in _B/_N, glTF imports in _texture_0/_texture_2
+    # (base color, normal) for a Fab folder key; Megascans end in _B/_N, glTF imports in _texture_0/_texture_2, the tiles pack in _Base_Color/_Normal
+    if '+' in key:  # the decorative paint is dark olive: keep its relief, take the color from a light base
+        color, relief = (pick(all_tex, k) for k in key.split('+'))
+        return (color[0], relief[1]) if color and relief else None
     hits = [t for t in all_tex if key.lower() in t.lower()]
-    base = [t for t in hits if t.endswith('_B') or t.endswith('_texture_0') or 'basecolor' in t.lower() or 'albedo' in t.lower()]
+    base = [t for t in hits if t.endswith('_B') or t.endswith('_texture_0') or 'basecolor' in t.lower().replace('_', '') or 'albedo' in t.lower()]
     normal = [t for t in hits if t.endswith('_N') or t.endswith('_texture_2') or 'normal' in t.lower()]
     if base and normal:
         return base[0], normal[0]
