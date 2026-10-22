@@ -25,6 +25,8 @@ MANAGER = LVL + 'LoopManager_UAID_50EBF677B6286D0D03_1474282790'
 PLAYER_START = LVL + 'PlayerStart_UAID_50EBF677B6286D0D03_1473898789'
 FRONT_DOOR = LVL + 'LoopDoor_UAID_50EBF677B6286E0D03_1713365970'
 LOOP_EXIT = LVL + 'LoopExit_UAID_50EBF677B6286D0D03_1474577791'
+MATS = '/Game/Endless/Materials/'  # M_WorldAligned instances over Megascans textures from Fab (not in git, see README)
+WALLPAPER, PARQUET, PLASTER = MATS + 'MI_Wallpaper.MI_Wallpaper', MATS + 'MI_Parquet.MI_Parquet', MATS + 'MI_Plaster.MI_Plaster'
 WALLS = []  # (orient, line, start, end, name) of every wall, for the loose-end check
 FREE_ENDS = {'W_Nook start'}  # wall ends that stand free on purpose
 
@@ -75,13 +77,15 @@ def place(path, x, y, z, yaw):
         'location': {'x': x, 'y': y, 'z': z}, 'rotation': {'pitch': 0, 'yaw': yaw, 'roll': 0}}, 'worldspace': True}))
 
 
-def box(name, x0, x1, y0, y1, z0=0, z1=H, f='Blockout'):
+def box(name, x0, x1, y0, y1, z0=0, z1=H, f='Blockout', mat=WALLPAPER):
     a = execute_tool(S + 'add_to_scene_from_asset', json.dumps({
         'asset_path': '/Engine/BasicShapes/Cube', 'name': name,
         'xform': {'location': {'x': (x0 + x1) / 2, 'y': (y0 + y1) / 2, 'z': (z0 + z1) / 2}, 'rotation': ROT0,
                   'scale': {'x': (x1 - x0) / 100, 'y': (y1 - y0) / 100, 'z': (z1 - z0) / 100}}}))['returnValue']
     folder(a, f)
     props(a, {'bIsSpatiallyLoaded': False})  # small level: keep everything loaded in the editor
+    if mat:
+        props({'refPath': a['refPath'] + '.StaticMeshComponent0'}, {'OverrideMaterials': [mat]})
     return a
 
 
@@ -144,8 +148,8 @@ def run():
 
     fy, top, bottom = Y(73), Y(205), Y(888)
     right = XL(787)
-    box('Floor', -40, right + 40, fy - 260, bottom + 30, -20, 0)
-    box('Ceiling', -40, right + 40, fy - 260, bottom + 30, H, H + 20)
+    box('Floor', -40, right + 40, fy - 260, bottom + 30, -20, 0, mat=PARQUET)
+    box('Ceiling', -40, right + 40, fy - 260, bottom + 30, H, H + 20, mat=PLASTER)
 
     # Upper block: living, hallway, kitchen, vestibule
     vwall('W_Left', 197, 205, 888)
@@ -179,12 +183,12 @@ def run():
     box('W_Front_a', 409, 544, fy - 10, fy + 10)
     box('W_Front_b', 644, 779, fy - 10, fy + 10)
     box('W_Front_Lintel', 544, 644, fy - 10, fy + 10, 205, H)
-    box('Landing_L', 409, 429, fy - 220, fy, f='Blockout/Landing')
-    box('Landing_R', 759, 779, fy - 220, fy, f='Blockout/Landing')
-    box('Landing_Back', 409, 779, fy - 240, fy - 220, f='Blockout/Landing')
+    box('Landing_L', 409, 429, fy - 220, fy, f='Blockout/Landing', mat=PLASTER)
+    box('Landing_R', 759, 779, fy - 220, fy, f='Blockout/Landing', mat=PLASTER)
+    box('Landing_Back', 409, 779, fy - 240, fy - 220, f='Blockout/Landing', mat=PLASTER)
 
     # Furniture is real meshes in stages_week2.py; the kitchen counter stays a box (no kitchen in the furniture pack)
-    box('Kitchen_Counter', X(890) - 70, X(890) - 10, top + 10, Y(400), 0, 90, f='Blockout/Props')
+    box('Kitchen_Counter', X(890) - 70, X(890) - 10, top + 10, Y(400), 0, 90, f='Blockout/Props', mat=None)
 
     # Movable lights with short radius: no stationary-overlap limit
     cx = (X(385) + X(472)) / 2

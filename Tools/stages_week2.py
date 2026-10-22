@@ -25,7 +25,7 @@ STAGES = [
     ('5_Acceptance', 'Принятие. Часы 00:00, фигура у входной двери. Выбор: уйти или остаться (неделя 6).', False),
 ]
 
-EXPOSURE_BIAS = -3.0  # EV of the manual exposure volume
+EXPOSURE_BIAS = -2.0  # EV of the manual exposure volume (-3 before materials: dark wallpaper and wood need +1)
 TEXT_GLOW = 2 ** -EXPOSURE_BIAS  # WorldText emissive boost that cancels the exposure: x8 at -3 EV
 
 LIGHT_ROWS = [  # intensity multiplier, Kelvin, flicker share

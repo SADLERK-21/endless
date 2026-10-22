@@ -15,6 +15,7 @@
 Сторонние ассеты в репозиторий не кладутся (лицензия Fab запрещает их раздавать, а репозиторий публичный). После клонирования добавьте их в проект через **Окно → Fab → «Добавить в проект»**:
 
 - **Free Furniture Pack** (Next Level 3D) — мебель квартиры, папка `Content/FreeFurniturePack`.
+- **Old Wallpaper**, **Fresh Wall Plaster** (Quixel Megascans) и **Herringbone Parquet** — обои, потолок и пол, папка `Content/Fab`. Материалы `Content/Endless/Materials/MI_*` ссылаются на их текстуры.
 
 ## Как собрать уровень
 
