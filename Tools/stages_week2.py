@@ -67,6 +67,18 @@ def box(name, x0, x1, y0, y1, z0, z1, f, black=False):
     return folder(a, f)
 
 
+FF = '/Game/FreeFurniturePack/Meshes/'  # Free Furniture Pack (Next Level 3D, Fab); pivots sit bottom-center
+BP = '/Game/FreeFurniturePack/Blueprints/'  # the pack's assembled furniture: doors and drawers on their meshes
+# Pack fronts face local +Y: yaw 90 faces -X (right walls), -90 faces +X (left walls), 180 faces -Y
+
+
+def mesh(name, asset, x, y, yaw, f, z=0):
+    a = execute_tool(S + 'add_to_scene_from_asset', json.dumps({
+        'asset_path': asset if asset.startswith('/') else FF + asset, 'name': name,
+        'xform': {'location': {'x': x, 'y': y, 'z': z}, 'rotation': {'pitch': 0, 'yaw': yaw, 'roll': 0}}}))['returnValue']
+    return folder(a, f)
+
+
 def text(name, s, x, y, z, yaw, size, color, f):
     # WorldText, not TextRender: TextRender's fonts have no Cyrillic. Reads from the actor's +X side.
     a = spawn('/Script/Endless.WorldText', name, x, y, z, f, yaw)
@@ -105,13 +117,36 @@ def run():
     removed = remove_folder('Stages')
 
     # Normal apartment (stage 0): props that later stages hide or move
-    bed = box('Bed', 397, 614.5, 965, 1104.5, 0, 55, 'Stages/0_Normal')
-    wardrobe = box('Wardrobe', 677, 737, -190, -80, 0, 220, 'Stages/0_Normal')
-    box('Nightstand', 395, 445, 905, 955, 0, 55, 'Stages/0_Normal')
-    box('PhoneTable', 697, 737, 0, 60, 0, 80, 'Stages/0_Normal')
-    phone = box('Phone', 705, 725, 20, 40, 80, 90, 'Stages/0_Normal')
-    box('Clock_Body', 405, 420, 915, 945, 55, 71, 'Stages/0_Normal')
-    clock = text('Clock_2359', '23:59', 421, 930, 63, 0, 9, CLOCK, 'Stages/0_Normal')
+    n = 'Stages/0_Normal'
+    # Bedroom: double bed headboard to the bathroom wall, nightstand with lamp and the stopped clock
+    bed = mesh('Bed', 'SM_Modern_Bed_2', 517, 1080, 0, n)
+    mesh('Nightstand', 'SM_Bed_Table', 412, 925, 0, n)
+    mesh('Bedside_Lamp', 'SM_Table_Lamp', 422, 912, 0, n, z=61)
+    box('Clock_Body', 400, 414, 928, 952, 61, 76, n)
+    clock = text('Clock_2359', '23:59', 415, 940, 68, 0, 7, CLOCK, n)
+    mesh('Bedroom_Commode', BP + 'BP_Classic_Commode', 1250, 900, 90, n)
+    mesh('Picture_Bed', 'SM_Classic_Picture', 389, 1080, 0, n, z=150)
+    # Hallway: wardrobe and the phone on a commode, both on the right wall
+    wardrobe = mesh('Wardrobe', BP + 'BP_Classic_Cupboard', 705, -122, 90, n)
+    mesh('PhoneTable', BP + 'BP_Classic_Commode', 715, 30, 90, n)
+    phone = box('Phone', 705, 725, 20, 40, 100, 110, n)
+    mesh('Picture_Hall', 'SM_Classic_Picture', 536, 0, 0, n, z=160)
+    # Living room: sofa on the top wall, coffee table, TV on a commode by the left wall
+    mesh('Sofa', 'SM_Classic_Leather_Sofa', 176, -130, 0, n)
+    mesh('Coffee_Table', 'SM_Coffee_Table', 176, -10, 0, n)
+    mesh('TV_Stand', 'SM_Commode', 40, 13, -90, n)
+    mesh('TV', 'SM_TV', 40, 13, -90, n, z=88)
+    # Computer nook: desk and office chair
+    mesh('Desk', 'SM_Old_Table', 55, 219, -90, n)
+    mesh('Desk_Chair', 'SM_Modern_Office_chair', 125, 219, 90, n)
+    # Kitchen: dining table and two chairs (the counter is a blockout box)
+    mesh('Dining_Table', 'SM_Old_Table', 860, 0, 0, n)
+    mesh('Dining_Chair_1', 'SM_Old_Chair', 860, -75, 0, n)
+    mesh('Dining_Chair_2', 'SM_Old_Chair', 860, 75, 180, n)
+    # Bathroom and lower corridor
+    mesh('Toilet', 'SM_Toilet', 40, 1175, -90, n)
+    mesh('Bathtub', 'SM_Bathtub', 250, 1160, 180, n)
+    mesh('Picture_Corridor', 'SM_Classic_Picture', 700, 714, 90, n, z=150)
 
     # 1: abandoned hobbies, first faint sign
     f = 'Stages/1_Trifle'
@@ -122,10 +157,12 @@ def run():
 
     # 2: guilt about mom; story item = photo in the kitchen, the sign points there
     f = 'Stages/2_Guilt'
-    anomaly('A2_Gift', 2, -1, f, show=[box('Gift', 700, 740, -60, -20, 0, 30, f),
-                                         text('Gift_Label', 'подарок маме', 720, -15, 50, 90, 16, LABEL, f)])
-    anomaly('A2_MissedCalls', 2, 3, f, show=[text('MissedCalls', 'Мама: 12 пропущенных', 735, 30, 115, 180, 14, LABEL, f)])
-    photo = spawn('/Script/Endless.StoryItem', 'Photo', 1000, 100, 100, f)
+    anomaly('A2_Gift', 2, -1, f, show=[box('Gift', 545, 585, 262, 298, 0, 30, f),
+                                         text('Gift_Label', 'подарок маме', 586, 280, 50, 0, 16, LABEL, f)])
+    anomaly('A2_MissedCalls', 2, 3, f, show=[text('MissedCalls', 'Мама: 12 пропущенных', 735, 30, 135, 180, 14, LABEL, f)])
+    photo = spawn('/Script/Endless.StoryItem', 'Photo', 1000, 100, 102, f, yaw=90)
+    props({'refPath': photo['refPath'] + '.Mesh'}, {'StaticMesh': FF + 'SM_Picture.SM_Picture',
+                                                     'RelativeScale3D': {'X': 0.4, 'Y': 0.4, 'Z': 0.4}})
     props(photo, {'UseMessage': 'Фото: мама и я, лет десять назад. На обороте её почерком: «Приезжай, когда сможешь».'})
     anomaly('A2_Photo', 2, 2, f, show=[photo, text('Photo_Label', 'фото с мамой [E]', 990, 100, 130, 180, 14, LABEL, f)])
     hint2 = spawn('/Script/Endless.StageHint', 'Hint_Kitchen', 900, 60, 150, f)
@@ -141,22 +178,22 @@ def run():
 
     # 4: the apartment breaks; story item = answer mom's call; the figure shows up for the first time
     f = 'Stages/4_Forgiveness'
-    phone_item = spawn('/Script/Endless.StoryItem', 'Phone_Ringing', 715, 30, 92, f)
+    phone_item = spawn('/Script/Endless.StoryItem', 'Phone_Ringing', 715, 30, 110, f)
     props(phone_item, {'bHideOnUse': False,
                        'UseMessage': 'Мама: «Сынок? Ты меня слышишь? Я здесь, рядом…»  [заглушка: озвученный разговор — неделя 5]'})
-    anomaly('A4_Call', 4, 4, f, hide=[phone], show=[phone_item, text('Sign4', 'ОТВЕТЬ', 736, 30, 180, 180, 30, SIGN, f),
-                                                      text('Phone_Label', 'звонит: Мама [E]', 735, 30, 120, 180, 14, LABEL, f)])
+    anomaly('A4_Call', 4, 4, f, hide=[phone], show=[phone_item, text('Sign4', 'ОТВЕТЬ', 736, 30, 195, 180, 30, SIGN, f),
+                                                      text('Phone_Label', 'звонит: Мама [E]', 735, 30, 140, 180, 14, LABEL, f)])
     hint4 = spawn('/Script/Endless.StageHint', 'Hint_Phone', 715, 30, 150, f)
     props(hint4, {'Stage': 4, 'MinRepeat': 0, 'Sound': RING, 'Interval': 2.5})  # the phone rings from the stage start
-    anomaly('A4_Moved', 4, 4, f, hide=[bed, wardrobe], show=[box('Bed_Moved', 1050, 1267.5, 1080, 1219.5, 0, 55, f),
-                                                             box('Wardrobe_Moved', 250, 310, 0, 110, 0, 220, f)])
+    anomaly('A4_Moved', 4, 4, f, hide=[bed, wardrobe], show=[mesh('Bed_Moved', 'SM_Modern_Bed_2', 1130, 1080, 180, f),
+                                                             mesh('Wardrobe_Moved', BP + 'BP_Classic_Cupboard', 450, 20, 0, f)])
     # Deep in the living room, in line with the upper corridor: seen while walking it toward the living room
     anomaly('A4_Figure', 4, 4, f, show=[box('Figure_Living', 327, 367, -120, -80, 0, 220, f, black=True),
                                         rim_light('Figure_Living_Rim', 347, -175, 200, f)])
 
     # 5: acceptance; the clock moves to 00:00, the figure waits on the landing right behind the front door
     f = 'Stages/5_Acceptance'
-    anomaly('A5_Clock', 5, -1, f, hide=[clock], show=[text('Clock_0000', '00:00', 421, 930, 63, 0, 9, CLOCK, f)])
+    anomaly('A5_Clock', 5, -1, f, hide=[clock], show=[text('Clock_0000', '00:00', 415, 940, 68, 0, 7, CLOCK, f)])
     anomaly('A5_Figure', 5, -1, f, show=[box('Figure_Door', 574, 614, -790, -760, 0, 230, f, black=True),
                                          rim_light('Figure_Door_Rim', 594, -808, 200, f),
                                          text('Sign5', 'ПОРА', 594, -586, 237, 90, 30, SIGN, f)])

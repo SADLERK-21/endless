@@ -183,10 +183,8 @@ def run():
     box('Landing_R', 759, 779, fy - 220, fy, f='Blockout/Landing')
     box('Landing_Back', 409, 779, fy - 240, fy - 220, f='Blockout/Landing')
 
-    # Furniture landmarks (bed and wardrobe live in stages_week2.py: anomalies move them)
-    box('Desk', 10, 70, Y(300), Y(390), 0, 75, f='Blockout/Props')
+    # Furniture is real meshes in stages_week2.py; the kitchen counter stays a box (no kitchen in the furniture pack)
     box('Kitchen_Counter', X(890) - 70, X(890) - 10, top + 10, Y(400), 0, 90, f='Blockout/Props')
-    box('Toilet', 20, 90, Y(840), Y(880), 0, 45, f='Blockout/Props')
 
     # Movable lights with short radius: no stationary-overlap limit
     cx = (X(385) + X(472)) / 2
@@ -205,11 +203,18 @@ def run():
         folder(l, 'Lights')
         props(l, {'bIsSpatiallyLoaded': False})
         props({'refPath': l['refPath'] + '.LightComponent0'}, {'Mobility': 'Movable', 'AttenuationRadius': 500})
+    # Bedside lamp on the nightstand (stages_week2.py places the lamp mesh): the bed corner was too dark to read as home
+    l = execute_tool(S + 'add_to_scene_from_class', json.dumps({
+        'actor_type': {'refPath': '/Script/Engine.PointLight'}, 'name': 'Light_Bedside',
+        'xform': {'location': {'x': 432, 'y': 925, 'z': 105}, 'rotation': ROT0}}))['returnValue']
+    folder(l, 'Lights')
+    props(l, {'bIsSpatiallyLoaded': False})
+    props({'refPath': l['refPath'] + '.LightComponent0'}, {'Mobility': 'Movable', 'AttenuationRadius': 350, 'Intensity': 4})
 
     # Loop actors: door hinge on the left jamb (panel along +X), exit trigger on the landing, wake-up by the bed
     place(FRONT_DOOR, 544, fy, 0, -90)
     place(LOOP_EXIT, 594, fy - 90, 0, -90)
-    wake_x, wake_y = XL(565), Y(760)
+    wake_x, wake_y = XL(565) + 40, Y(760)  # beside the double bed (stages_week2.py), not in it
     wake_yaw = math.degrees(math.atan2(Y(628) - wake_y, bed_door - wake_x))  # face the bedroom door
     place(MANAGER, wake_x, wake_y, 0, wake_yaw)
     place(PLAYER_START, wake_x, wake_y, 100, wake_yaw)
