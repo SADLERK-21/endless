@@ -9,6 +9,9 @@ H = 270            # wall height, cm
 K = 1.5            # cm per pixel of the user's plan
 OX, OY = 197, 205  # plan pixel that maps to world (0,0)
 DOOR = 100         # clear width of every doorway
+# Wall ends reach this far into the wall they meet: just short of half the common 20cm wall, so an end face
+# never lies in the plane of the other wall's face (coplanar faces flicker on outside corners)
+EXT = 9.9
 CORR_EXTRA = 200   # upper corridor lengthened: everything below plan y=540 moves down
 ROOM_EXTRA = 200   # living / hallway / kitchen deeper: their top wall (plan y=205) moves up
 VEST_EXTRA = 200   # vestibule to the front door longer: plan y=73 moves up more
@@ -40,14 +43,22 @@ FINISH = {
     'hall': ('MI_Walls_Hall', 'MI_Floor_Tiles', 'MI_Baseboard_New'),
     'kitchen': ('MI_Walls_Kitchen', 'MI_Floor_Tiles', 'MI_Baseboard_New'),
     'bath': ('MI_Walls_Bath', 'MI_Floor_Bath', None),
-    'corr1': ('MI_Walls_Corridor', None, 'MI_Baseboard_Old'),
-    'corr2': ('MI_Walls_Corridor', None, 'MI_Baseboard_Old'),
-    'nook': ('MI_Wallpaper', None, 'MI_Baseboard_Old'),
+    'corr1': ('MI_Walls_Corridor', 'MI_Parquet_Corridor', 'MI_Baseboard_Old'),
+    'corr2': ('MI_Walls_Corridor', 'MI_Parquet_Corridor', 'MI_Baseboard_Old'),
     'landing': ('MI_Plaster', 'MI_Plaster', None),
     'outside': ('MI_Plaster', None, None),
 }
+THRESHOLD = 'MI_Baseboard_Old'  # dark wood where two different floors meet
+# M_Fitted finishes (materials_apartment.py) and their layout: Custom Primitive Data per actor
+PANEL_W = 135      # MI_Walls_Corridor TileU: a wall face gets a whole number of panels about this wide
+PARQUET_W = 200    # MI_Parquet_Corridor tile
+SPINE_U = 0.58     # where a herringbone spine sits across the parquet texture (0..1): put on the corridor axis
+FITTED = {'MI_Walls_Corridor', 'MI_Parquet_Corridor'}
 WALLS = []  # (orient, line, start, end, name) of every wall, for the loose-end check
+PIECES = []  # wall pieces, built after all are known: each face is fitted against the walls that cover it
+DOORWAYS = []  # (orient, line, center, width, flush) where the floor may change
 FREE_ENDS = {'W_Nook start'}  # wall ends that stand free on purpose
+NOOK_PX = 302 + 100 / K  # nook partition, a metre further into the living room than on the plan
 
 
 def X(px):
@@ -76,13 +87,12 @@ def Y(py):
 
 
 def rooms():
-    # Room rectangles on wall center lines; the first match wins (the nook sits inside the living room)
+    # Room rectangles on wall center lines; the first match wins
     fy, top = Y(73), Y(205)
     return [
-        ('nook', X(197), X(302), Y(287), Y(413)),
-        ('living', X(197), X(547), top, Y(413)),
+        ('living', X(197), X(547), top, Y(413)),  # the nook belongs to it: same finish
         ('hall', X(547), X(695), top, Y(413)),
-        ('hall', X(543), X(642), fy, top),  # vestibule
+        ('hall', X(547), X(642), fy, top),  # vestibule
         ('kitchen', X(695), X(890), top, Y(413)),
         ('corr1', X(385), X(472), Y(413), Y(540)),
         ('corr2', X(197), XL(695), Y(540), Y(628)),
@@ -123,7 +133,7 @@ def place(path, x, y, z, yaw):
         'location': {'x': x, 'y': y, 'z': z}, 'rotation': {'pitch': 0, 'yaw': yaw, 'roll': 0}}, 'worldspace': True}))
 
 
-def box(name, x0, x1, y0, y1, z0=0, z1=H, f='Blockout', mat=None):
+def box(name, x0, x1, y0, y1, z0=0, z1=H, f='Blockout', mat=None, fit=None):
     a = execute_tool(S + 'add_to_scene_from_asset', json.dumps({
         'asset_path': '/Engine/BasicShapes/Cube', 'name': name,
         'xform': {'location': {'x': (x0 + x1) / 2, 'y': (y0 + y1) / 2, 'z': (z0 + z1) / 2}, 'rotation': ROT0,
@@ -132,35 +142,114 @@ def box(name, x0, x1, y0, y1, z0=0, z1=H, f='Blockout', mat=None):
     props(a, {'bIsSpatiallyLoaded': False})  # small level: keep everything loaded in the editor
     if mat:
         props({'refPath': a['refPath'] + '.StaticMeshComponent0'}, {'OverrideMaterials': [mat]})
+    if fit:  # M_Fitted reads its layout from Custom Primitive Data 0..3
+        props({'refPath': a['refPath'] + '.StaticMeshComponent0'}, {'CustomPrimitiveData': {'Data': list(fit)}})
     return a
 
 
 def wall_piece(name, orient, line, a, b, t, z0=0, z1=H):
-    # One straight piece of wall from a to b along its line. Each side gets the finish of the room it faces:
-    # the piece is split lengthwise into two halves, and each half into runs facing one room.
-    # Floor-level runs get a baseboard. 'v' = wall along Y at x = line, 'h' = along X at y = line.
-    for side in (-1, 1):
-        face = line + side * t / 2
-        runs, pos = [], a
-        while pos < b:
-            nxt = min(pos + 5, b)
-            mid = (pos + nxt) / 2
-            room = room_at(face + side * 5, mid) if orient == 'v' else room_at(mid, face + side * 5)
-            if runs and runs[-1][0] == room:
-                runs[-1][2] = nxt
-            else:
-                runs.append([room, pos, nxt])
-            pos = nxt
-        lo, hi = sorted((line, face))
-        b0, b1 = sorted((face, face + side * 1.5))
-        for i, (room, s0, s1) in enumerate(runs):
-            walls, _, baseboard = FINISH[room]
-            n = '%s_%s%d' % (name, 'A' if side < 0 else 'B', i)
-            rect = (lo, hi, s0, s1) if orient == 'v' else (s0, s1, lo, hi)
-            box(n, *rect, z0, z1, mat=mat(walls))
-            if baseboard and z0 == 0:
-                rect = (b0, b1, s0, s1) if orient == 'v' else (s0, s1, b0, b1)
-                box(n + '_Base', *rect, 0, 8, f='Blockout/Baseboards', mat=mat(baseboard))
+    # One straight piece of wall from a to b along its line ('v' = along Y at x = line, 'h' = along X at y = line).
+    # Built by build_walls() once every piece is known.
+    PIECES.append((name, orient, line, a, b, t, z0, z1))
+
+
+def footprint(orient, line, a, b, t):
+    return (line - t / 2, line + t / 2, a, b) if orient == 'v' else (a, b, line - t / 2, line + t / 2)
+
+
+def covered(orient, at, s0, s1, me):
+    # Merged stretches of s0..s1 hidden by other floor-standing walls, just in front of a face at 'at'
+    cuts = []
+    for p in PIECES:
+        if p is me or p[6] > 0:
+            continue
+        x0, x1, y0, y1 = footprint(*p[1:6])
+        lo, hi, a0, a1 = (x0, x1, y0, y1) if orient == 'v' else (y0, y1, x0, x1)
+        if lo < at < hi and a0 < s1 and a1 > s0:
+            cuts.append([max(a0, s0), min(a1, s1)])
+    merged = []
+    for c in sorted(cuts):
+        if merged and c[0] <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], c[1])
+        else:
+            merged.append(c)
+    return merged
+
+
+def segments(s0, s1, hidden):
+    # Visible stretches (v0, v1) of s0..s1, each grown to (a, b) up to the middle of the hidden parts around it,
+    # so the boxes still make one whole wall
+    seg, pos = [], s0
+    for h0, h1 in hidden:
+        if h0 > pos:
+            seg.append((pos, h0))
+        pos = max(pos, h1)
+    if pos < s1:
+        seg.append((pos, s1))
+    out = []
+    for i, (v0, v1) in enumerate(seg):
+        a = s0 if i == 0 else (seg[i - 1][1] + v0) / 2
+        b = s1 if i == len(seg) - 1 else (v1 + seg[i + 1][0]) / 2
+        out.append((a, b, v0, v1))
+    return out or [(s0, s1, s0, s1)]
+
+
+def build_walls():
+    # Each side of a piece gets the finish of the room it faces: the piece is split lengthwise into two halves,
+    # and each half into runs facing one room. A fitted finish splits a run again where another wall meets it
+    # and fits a whole number of panels to each visible stretch. Floor-level runs get a baseboard.
+    for me in PIECES:
+        name, orient, line, a, b, t, z0, z1 = me
+        for side in (-1, 1):
+            face = line + side * t / 2
+            runs, pos = [], a
+            while pos < b:
+                nxt = min(pos + 5, b)
+                mid = (pos + nxt) / 2
+                room = room_at(face + side * 5, mid) if orient == 'v' else room_at(mid, face + side * 5)
+                if runs and runs[-1][0] == room:
+                    runs[-1][2] = nxt
+                else:
+                    runs.append([room, pos, nxt])
+                pos = nxt
+            lo, hi = sorted((line, face))
+            b0, b1 = sorted((face, face + side * 1.5))
+            i = 0
+            for room, s0, s1 in runs:
+                walls, _, baseboard = FINISH[room]
+                parts = [(s0, s1, s0, s1)]
+                if walls in FITTED:
+                    parts = segments(s0, s1, covered(orient, face + side * 0.5, s0, s1, me))
+                for p0, p1, v0, v1 in parts:
+                    n = '%s_%s%d' % (name, 'A' if side < 0 else 'B', i)
+                    i += 1
+                    fit = None
+                    if walls in FITTED:
+                        fit = (v0, (v1 - v0) / max(1, round((v1 - v0) / PANEL_W)), H, 2 if orient == 'v' else 3)
+                    rect = (lo, hi, p0, p1) if orient == 'v' else (p0, p1, lo, hi)
+                    box(n, *rect, z0, z1, mat=mat(walls), fit=fit)
+                    if baseboard and z0 == 0:
+                        rect = (b0, b1, p0, p1) if orient == 'v' else (p0, p1, b0, b1)
+                        box(n + '_Base', *rect, 0, 8, f='Blockout/Baseboards', mat=mat(baseboard))
+
+
+def floor_of(x, y):
+    return FINISH[room_at(x, y)][1] or 'MI_Parquet'
+
+
+def thresholds():
+    # Where the floor changes: a raised wooden threshold across a doorway. An open passage always gets a flush
+    # strip: even the same parquet turns there to follow the next corridor
+    made = []
+    for i, (orient, line, c, width, flush) in enumerate(DOORWAYS):
+        sides = [floor_of(line + d, c) if orient == 'v' else floor_of(c, line + d) for d in (-15, 15)]
+        if sides[0] == sides[1] and not flush:
+            continue
+        depth = 6 if flush else 20
+        rect = footprint(orient, line, c - width / 2, c + width / 2, depth)
+        box('Threshold_%d' % i, *rect, 0, 0.8 if flush else 1.5, f='Blockout/Thresholds', mat=mat(THRESHOLD))
+        made.append(sides)
+    return made
 
 
 def spans(a0, a1, gaps):
@@ -175,20 +264,22 @@ def spans(a0, a1, gaps):
 
 def vwall(name, px, py0, py1, gaps=(), t=20, xf=X):
     x = xf(px)
-    WALLS.append(('v', x, Y(py0) - t / 2, Y(py1) + t / 2, name))
-    for i, (a, b) in enumerate(spans(Y(py0) - t / 2, Y(py1) + t / 2, gaps)):
+    WALLS.append(('v', x, Y(py0) - EXT, Y(py1) + EXT, name))
+    for i, (a, b) in enumerate(spans(Y(py0) - EXT, Y(py1) + EXT, gaps)):
         wall_piece('%s_%d' % (name, i), 'v', x, a, b, t)
     for c in gaps:
         wall_piece(name + '_Lintel', 'v', x, c - DOOR / 2, c + DOOR / 2, t, 210, H)
+        DOORWAYS.append(('v', x, c, DOOR, False))
 
 
 def hwall(name, py, px0, px1, gaps=(), t=20, xf=X):
     y = Y(py)
-    WALLS.append(('h', y, xf(px0) - t / 2, xf(px1) + t / 2, name))
-    for i, (a, b) in enumerate(spans(xf(px0) - t / 2, xf(px1) + t / 2, gaps)):
+    WALLS.append(('h', y, xf(px0) - EXT, xf(px1) + EXT, name))
+    for i, (a, b) in enumerate(spans(xf(px0) - EXT, xf(px1) + EXT, gaps)):
         wall_piece('%s_%d' % (name, i), 'h', y, a, b, t)
     for c in gaps:
         wall_piece(name + '_Lintel', 'h', y, c - DOOR / 2, c + DOOR / 2, t, 210, H)
+        DOORWAYS.append(('h', y, c, DOOR, False))
 
 
 def blockers(x0, x1, y0, y1):
@@ -226,21 +317,27 @@ def run():
     box('Floor', -40, right + 40, fy - 260, bottom + 30, -20, 0, mat=PARQUET)  # the old parquet everywhere
     box('Ceiling', -40, right + 40, fy - 260, bottom + 30, H, H + 20, mat=PLASTER)
     # Renovated rooms lay their own floor over the old parquet; in doorways it ends at the wall center like a threshold
+    # Corridor parquet runs along the corridor with a herringbone spine on its axis
     for i, (room, x0, x1, y0, y1) in enumerate(ROOMS):
         floor = FINISH[room][1]
+        fit = None
+        if floor in FITTED:
+            along_x = x1 - x0 > y1 - y0
+            axis = (y0 + y1) / 2 if along_x else (x0 + x1) / 2
+            fit = (axis - SPINE_U * PARQUET_W, 0, 0, 1 if along_x else 0)
         if floor:
-            box('Floor_%s_%d' % (room, i), x0, x1, y0, y1, 0, 0.5, mat=mat(floor))
+            box('Floor_%s_%d' % (room, i), x0, x1, y0, y1, 0, 0.5, mat=mat(floor), fit=fit)
 
     # Upper block: living, hallway, kitchen, vestibule
     vwall('W_Left', 197, 205, 888)
     vwall('W_Kitchen_R', 890, 205, 413)
-    hwall('W_Top_Living', 205, 197, 543)
+    hwall('W_Top_Living', 205, 197, 547)
     hwall('W_Top_HallKitchen', 205, 642, 890)
-    vwall('W_Vest_L', 543, 73, 205)
+    vwall('W_Vest_L', 547, 73, 205)  # in line with W_LivHall: no step in the hallway wall
     vwall('W_Vest_R', 642, 73, 205)
     vwall('W_LivHall', 547, 205, 413, gaps=[(Y(318) + Y(362)) / 2])
     vwall('W_HallKitchen', 695, 205, 413, gaps=[(Y(318) + Y(398)) / 2])
-    vwall('W_Nook', 302, 287, 413)
+    vwall('W_Nook', NOOK_PX, 287, 413)
     # Upper corridor
     hwall('W_413_L', 413, 197, 385)
     hwall('W_413_R', 413, 472, 890)
@@ -251,8 +348,8 @@ def run():
     bed_door = XL(695) - BED_DOOR_FROM_END  # far right end of the corridor: longer walk after waking up
     hwall('W_540_L', 540, 197, 385)
     # Starts at the upper corridor (plan x=472), which the lower-block shift must not move
-    wall_piece('W_540_R', 'h', Y(540), X(472) - 10, XL(695) + 10, 20)
-    WALLS.append(('h', Y(540), X(472) - 10, XL(695) + 10, 'W_540_R'))
+    wall_piece('W_540_R', 'h', Y(540), X(472) - EXT, XL(695) + EXT, 20)
+    WALLS.append(('h', Y(540), X(472) - EXT, XL(695) + EXT, 'W_540_R'))
     vwall('W_Corr2_R', 695, 540, 628, xf=XL)
     hwall('W_628', 628, 197, 787, gaps=[bath_door, bed_door], xf=XL)
     vwall('W_Bath_Bed', 380, 628, 888, t=25, xf=XL)
@@ -266,6 +363,13 @@ def run():
     wall_piece('Landing_L', 'v', 419, fy - 220, fy, 20)
     wall_piece('Landing_R', 'v', 769, fy - 220, fy, 20)
     wall_piece('Landing_Back', 'h', fy - 230, 409, 779, 20)
+    DOORWAYS.append(('h', fy, 594, DOOR, False))
+    # Open passages of the upper corridor: into the living room and into the lower corridor
+    corr1_c, corr1_w = (X(385) + X(472)) / 2, X(472) - X(385) - 20
+    DOORWAYS.append(('h', Y(413), corr1_c, corr1_w, True))
+    DOORWAYS.append(('h', Y(540), corr1_c, corr1_w, True))
+    build_walls()
+    made_thresholds = thresholds()
 
     # Furniture is real meshes in stages_week2.py; the kitchen counter stays a box (no kitchen in the furniture pack)
     box('Kitchen_Counter', X(890) - 70, X(890) - 10, top + 10, Y(400), 0, 90, f='Blockout/Props')
@@ -278,7 +382,7 @@ def run():
     for name, x, y in [('Light_Bedroom', (XL(380) + XL(787)) / 2, Y(760)), ('Light_Bath', XL(380) / 2, Y(760)),
                        ('Light_Corridor2_a', XL(695) * 0.25, corr2_y), ('Light_Corridor2_b', XL(695) * 0.75, corr2_y),
                        ('Light_Corridor1_a', cx, Y(413) + 120), ('Light_Corridor1_b', cx, Y(540) - 120),
-                       ('Light_Living', X(400), room_y), ('Light_Nook', X(250), Y(350)), ('Light_Hall', X(620), room_y),
+                       ('Light_Living', X(400), room_y), ('Light_Nook', (X(197) + X(NOOK_PX)) / 2, Y(350)), ('Light_Hall', X(620), room_y),
                        ('Light_Vestibule_a', X(593), vest_y - 100), ('Light_Vestibule_b', X(593), vest_y + 100),
                        ('Light_Kitchen', X(790), room_y)]:
         l = execute_tool(S + 'add_to_scene_from_class', json.dumps({
@@ -317,5 +421,5 @@ def run():
         'FrontDoorFrame': (549, 639, fy - 13, fy + 13),
     }
     blocked = {k: v for k, v in ((k, blockers(*z)) for k, z in zones.items()) if v}
-    return {'removed': removed, 'loose_ends': loose_ends(), 'bed_door_x': bed_door, 'wake_yaw': wake_yaw, 'bath_width': XL(380) - X(197), 'bedroom_width': XL(787) - XL(380),
+    return {'removed': removed, 'loose_ends': loose_ends(), 'thresholds': made_thresholds, 'bed_door_x': bed_door, 'wake_yaw': wake_yaw, 'bath_width': XL(380) - X(197), 'bedroom_width': XL(787) - XL(380),
             'corridor2_length': XL(695) - X(197), 'blocked': blocked}
