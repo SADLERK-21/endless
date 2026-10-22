@@ -3,6 +3,7 @@
 #include "Interactable.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/PointLightComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "EnhancedInputComponent.h"
@@ -20,6 +21,14 @@ AEndlessCharacter::AEndlessCharacter()
 	Camera->SetupAttachment(GetCapsuleComponent());
 	Camera->SetRelativeLocation(FVector(0.f, 0.f, 64.f));
 	Camera->bUsePawnControlRotation = true;
+
+	DebugLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("DebugLight"));
+	DebugLight->SetupAttachment(Camera);
+	DebugLight->SetIntensityUnits(ELightUnits::Candelas);
+	DebugLight->SetIntensity(150.f); // apartment lamps are 8 cd; this lights a whole room at the level's -3 EV exposure
+	DebugLight->SetAttenuationRadius(3000.f);
+	DebugLight->SetCastShadows(false); // no shadows: see into every corner
+	DebugLight->SetVisibility(false);
 }
 
 void AEndlessCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -51,6 +60,10 @@ void AEndlessCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 	MappingContext->MapKey(LookAction, EKeys::Mouse2D).Modifiers.Add(InvertY);
 
 	MappingContext->MapKey(InteractAction, EKeys::E);
+#if !UE_BUILD_SHIPPING
+	DebugLightAction = MakeAction(EInputActionValueType::Boolean);
+	MappingContext->MapKey(DebugLightAction, EKeys::F);
+#endif
 
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))
 	{
@@ -69,6 +82,9 @@ void AEndlessCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 	Input->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AEndlessCharacter::Move);
 	Input->BindAction(LookAction, ETriggerEvent::Triggered, this, &AEndlessCharacter::Look);
 	Input->BindAction(InteractAction, ETriggerEvent::Started, this, &AEndlessCharacter::Interact);
+#if !UE_BUILD_SHIPPING
+	Input->BindAction(DebugLightAction, ETriggerEvent::Started, this, &AEndlessCharacter::ToggleDebugLight);
+#endif
 }
 
 void AEndlessCharacter::Move(const FInputActionValue& Value)
@@ -99,4 +115,9 @@ void AEndlessCharacter::Interact()
 			IInteractable::Execute_Interact(Target, this);
 		}
 	}
+}
+
+void AEndlessCharacter::ToggleDebugLight()
+{
+	DebugLight->ToggleVisibility();
 }

@@ -5,6 +5,7 @@
 #include "EndlessCharacter.generated.h"
 
 class UCameraComponent;
+class UPointLightComponent;
 class UInputAction;
 class UInputMappingContext;
 struct FInputActionValue;
@@ -23,6 +24,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Endless")
 	float InteractDistance = 200.f;
 
+	// DEBUG: F floods the area with light for level testing. Remove before release (Docs/Backlog.md).
+	UPROPERTY(VisibleAnywhere, Category = "Endless|Debug")
+	TObjectPtr<UPointLightComponent> DebugLight;
+
 protected:
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
@@ -30,10 +35,12 @@ private:
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
 	void Interact();
+	void ToggleDebugLight();
 
 	// shortcut: input is built in code (WASD/mouse/E), no rebinding; move to .uasset input when a settings menu is needed.
 	UPROPERTY(Transient) TObjectPtr<UInputMappingContext> MappingContext;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> MoveAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> LookAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> InteractAction;
+	UPROPERTY(Transient) TObjectPtr<UInputAction> DebugLightAction;
 };
