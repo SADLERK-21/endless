@@ -25,8 +25,27 @@ MANAGER = LVL + 'LoopManager_UAID_50EBF677B6286D0D03_1474282790'
 PLAYER_START = LVL + 'PlayerStart_UAID_50EBF677B6286D0D03_1473898789'
 FRONT_DOOR = LVL + 'LoopDoor_UAID_50EBF677B6286E0D03_1713365970'
 LOOP_EXIT = LVL + 'LoopExit_UAID_50EBF677B6286D0D03_1474577791'
-MATS = '/Game/Endless/Materials/'  # M_WorldAligned instances over Megascans textures from Fab (not in git, see README)
-WALLPAPER, PARQUET, PLASTER = MATS + 'MI_Wallpaper.MI_Wallpaper', MATS + 'MI_Parquet.MI_Parquet', MATS + 'MI_Plaster.MI_Plaster'
+MATS = '/Game/Endless/Materials/'  # finishes from materials_apartment.py (M_WorldAligned over Fab textures, not in git)
+
+
+def mat(name):
+    return MATS + name + '.' + name
+
+
+PARQUET, PLASTER = mat('MI_Parquet'), mat('MI_Plaster')
+# Room -> (walls, floor laid over the old parquet or None, baseboard or None). GDD 4.1: renovated rooms vs old ones.
+FINISH = {
+    'living': ('MI_Walls_Living', 'MI_Floor_Living', 'MI_Baseboard_New'),
+    'bedroom': ('MI_Walls_Bedroom', 'MI_Floor_Bedroom', 'MI_Baseboard_New'),
+    'hall': ('MI_Walls_Hall', 'MI_Floor_Tiles', 'MI_Baseboard_New'),
+    'kitchen': ('MI_Walls_Kitchen', 'MI_Floor_Tiles', 'MI_Baseboard_New'),
+    'bath': ('MI_Walls_Bath', 'MI_Floor_Bath', None),
+    'corr1': ('MI_Walls_Corridor', None, 'MI_Baseboard_Old'),
+    'corr2': ('MI_Walls_Corridor', None, 'MI_Baseboard_Old'),
+    'nook': ('MI_Wallpaper', None, 'MI_Baseboard_Old'),
+    'landing': ('MI_Plaster', 'MI_Plaster', None),
+    'outside': ('MI_Plaster', None, None),
+}
 WALLS = []  # (orient, line, start, end, name) of every wall, for the loose-end check
 FREE_ENDS = {'W_Nook start'}  # wall ends that stand free on purpose
 
@@ -56,6 +75,33 @@ def Y(py):
     return y
 
 
+def rooms():
+    # Room rectangles on wall center lines; the first match wins (the nook sits inside the living room)
+    fy, top = Y(73), Y(205)
+    return [
+        ('nook', X(197), X(302), Y(287), Y(413)),
+        ('living', X(197), X(547), top, Y(413)),
+        ('hall', X(547), X(695), top, Y(413)),
+        ('hall', X(543), X(642), fy, top),  # vestibule
+        ('kitchen', X(695), X(890), top, Y(413)),
+        ('corr1', X(385), X(472), Y(413), Y(540)),
+        ('corr2', X(197), XL(695), Y(540), Y(628)),
+        ('bath', X(197), XL(380), Y(628), Y(888)),
+        ('bedroom', XL(380), XL(787), Y(628), Y(888)),
+        ('landing', 409, 779, fy - 240, fy),
+    ]
+
+
+ROOMS = rooms()
+
+
+def room_at(x, y):
+    for name, x0, x1, y0, y1 in ROOMS:
+        if x0 <= x <= x1 and y0 <= y <= y1:
+            return name
+    return 'outside'
+
+
 def in_folder(f):
     # get_actors_in_folder fails on a missing folder, and that error can't be caught in the sandbox
     if f not in execute_tool(S + 'get_folders', '{}')['returnValue']:
@@ -77,7 +123,7 @@ def place(path, x, y, z, yaw):
         'location': {'x': x, 'y': y, 'z': z}, 'rotation': {'pitch': 0, 'yaw': yaw, 'roll': 0}}, 'worldspace': True}))
 
 
-def box(name, x0, x1, y0, y1, z0=0, z1=H, f='Blockout', mat=WALLPAPER):
+def box(name, x0, x1, y0, y1, z0=0, z1=H, f='Blockout', mat=None):
     a = execute_tool(S + 'add_to_scene_from_asset', json.dumps({
         'asset_path': '/Engine/BasicShapes/Cube', 'name': name,
         'xform': {'location': {'x': (x0 + x1) / 2, 'y': (y0 + y1) / 2, 'z': (z0 + z1) / 2}, 'rotation': ROT0,
@@ -87,6 +133,34 @@ def box(name, x0, x1, y0, y1, z0=0, z1=H, f='Blockout', mat=WALLPAPER):
     if mat:
         props({'refPath': a['refPath'] + '.StaticMeshComponent0'}, {'OverrideMaterials': [mat]})
     return a
+
+
+def wall_piece(name, orient, line, a, b, t, z0=0, z1=H):
+    # One straight piece of wall from a to b along its line. Each side gets the finish of the room it faces:
+    # the piece is split lengthwise into two halves, and each half into runs facing one room.
+    # Floor-level runs get a baseboard. 'v' = wall along Y at x = line, 'h' = along X at y = line.
+    for side in (-1, 1):
+        face = line + side * t / 2
+        runs, pos = [], a
+        while pos < b:
+            nxt = min(pos + 5, b)
+            mid = (pos + nxt) / 2
+            room = room_at(face + side * 5, mid) if orient == 'v' else room_at(mid, face + side * 5)
+            if runs and runs[-1][0] == room:
+                runs[-1][2] = nxt
+            else:
+                runs.append([room, pos, nxt])
+            pos = nxt
+        lo, hi = sorted((line, face))
+        b0, b1 = sorted((face, face + side * 1.5))
+        for i, (room, s0, s1) in enumerate(runs):
+            walls, _, baseboard = FINISH[room]
+            n = '%s_%s%d' % (name, 'A' if side < 0 else 'B', i)
+            rect = (lo, hi, s0, s1) if orient == 'v' else (s0, s1, lo, hi)
+            box(n, *rect, z0, z1, mat=mat(walls))
+            if baseboard and z0 == 0:
+                rect = (b0, b1, s0, s1) if orient == 'v' else (s0, s1, b0, b1)
+                box(n + '_Base', *rect, 0, 8, f='Blockout/Baseboards', mat=mat(baseboard))
 
 
 def spans(a0, a1, gaps):
@@ -103,18 +177,18 @@ def vwall(name, px, py0, py1, gaps=(), t=20, xf=X):
     x = xf(px)
     WALLS.append(('v', x, Y(py0) - t / 2, Y(py1) + t / 2, name))
     for i, (a, b) in enumerate(spans(Y(py0) - t / 2, Y(py1) + t / 2, gaps)):
-        box('%s_%d' % (name, i), x - t / 2, x + t / 2, a, b)
+        wall_piece('%s_%d' % (name, i), 'v', x, a, b, t)
     for c in gaps:
-        box(name + '_Lintel', x - t / 2, x + t / 2, c - DOOR / 2, c + DOOR / 2, 210, H)
+        wall_piece(name + '_Lintel', 'v', x, c - DOOR / 2, c + DOOR / 2, t, 210, H)
 
 
 def hwall(name, py, px0, px1, gaps=(), t=20, xf=X):
     y = Y(py)
     WALLS.append(('h', y, xf(px0) - t / 2, xf(px1) + t / 2, name))
     for i, (a, b) in enumerate(spans(xf(px0) - t / 2, xf(px1) + t / 2, gaps)):
-        box('%s_%d' % (name, i), a, b, y - t / 2, y + t / 2)
+        wall_piece('%s_%d' % (name, i), 'h', y, a, b, t)
     for c in gaps:
-        box(name + '_Lintel', c - DOOR / 2, c + DOOR / 2, y - t / 2, y + t / 2, 210, H)
+        wall_piece(name + '_Lintel', 'h', y, c - DOOR / 2, c + DOOR / 2, t, 210, H)
 
 
 def blockers(x0, x1, y0, y1):
@@ -131,7 +205,8 @@ def loose_ends():
             lo, hi = sorted((end - sign * 5, end + sign * 15))
             zone = (line - 3, line + 3, lo, hi) if orient == 'v' else (lo, hi, line - 3, line + 3)
             label = '%s %s' % (name, tag)
-            if len(blockers(*zone)) < 2 and label not in FREE_ENDS:
+            # The wall's own two halves are always there; a third actor means another wall meets it
+            if len(blockers(*zone)) < 3 and label not in FREE_ENDS:
                 bad.append(label)
     return bad
 
@@ -148,8 +223,13 @@ def run():
 
     fy, top, bottom = Y(73), Y(205), Y(888)
     right = XL(787)
-    box('Floor', -40, right + 40, fy - 260, bottom + 30, -20, 0, mat=PARQUET)
+    box('Floor', -40, right + 40, fy - 260, bottom + 30, -20, 0, mat=PARQUET)  # the old parquet everywhere
     box('Ceiling', -40, right + 40, fy - 260, bottom + 30, H, H + 20, mat=PLASTER)
+    # Renovated rooms lay their own floor over the old parquet; in doorways it ends at the wall center like a threshold
+    for i, (room, x0, x1, y0, y1) in enumerate(ROOMS):
+        floor = FINISH[room][1]
+        if floor:
+            box('Floor_%s_%d' % (room, i), x0, x1, y0, y1, 0, 0.5, mat=mat(floor))
 
     # Upper block: living, hallway, kitchen, vestibule
     vwall('W_Left', 197, 205, 888)
@@ -171,7 +251,7 @@ def run():
     bed_door = XL(695) - BED_DOOR_FROM_END  # far right end of the corridor: longer walk after waking up
     hwall('W_540_L', 540, 197, 385)
     # Starts at the upper corridor (plan x=472), which the lower-block shift must not move
-    box('W_540_R', X(472) - 10, XL(695) + 10, Y(540) - 10, Y(540) + 10)
+    wall_piece('W_540_R', 'h', Y(540), X(472) - 10, XL(695) + 10, 20)
     WALLS.append(('h', Y(540), X(472) - 10, XL(695) + 10, 'W_540_R'))
     vwall('W_Corr2_R', 695, 540, 628, xf=XL)
     hwall('W_628', 628, 197, 787, gaps=[bath_door, bed_door], xf=XL)
@@ -180,15 +260,15 @@ def run():
     hwall('W_Bottom', 888, 197, 787, xf=XL)
 
     # Front door wall (red line), 100cm opening, dark landing outside
-    box('W_Front_a', 409, 544, fy - 10, fy + 10)
-    box('W_Front_b', 644, 779, fy - 10, fy + 10)
-    box('W_Front_Lintel', 544, 644, fy - 10, fy + 10, 205, H)
-    box('Landing_L', 409, 429, fy - 220, fy, f='Blockout/Landing', mat=PLASTER)
-    box('Landing_R', 759, 779, fy - 220, fy, f='Blockout/Landing', mat=PLASTER)
-    box('Landing_Back', 409, 779, fy - 240, fy - 220, f='Blockout/Landing', mat=PLASTER)
+    wall_piece('W_Front_a', 'h', fy, 409, 544, 20)
+    wall_piece('W_Front_b', 'h', fy, 644, 779, 20)
+    wall_piece('W_Front_Lintel', 'h', fy, 544, 644, 20, 205, H)
+    wall_piece('Landing_L', 'v', 419, fy - 220, fy, 20)
+    wall_piece('Landing_R', 'v', 769, fy - 220, fy, 20)
+    wall_piece('Landing_Back', 'h', fy - 230, 409, 779, 20)
 
     # Furniture is real meshes in stages_week2.py; the kitchen counter stays a box (no kitchen in the furniture pack)
-    box('Kitchen_Counter', X(890) - 70, X(890) - 10, top + 10, Y(400), 0, 90, f='Blockout/Props', mat=None)
+    box('Kitchen_Counter', X(890) - 70, X(890) - 10, top + 10, Y(400), 0, 90, f='Blockout/Props')
 
     # Movable lights with short radius: no stationary-overlap limit
     cx = (X(385) + X(472)) / 2
