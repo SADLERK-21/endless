@@ -56,26 +56,29 @@ def spawn(cls, name, x, y, z, f, yaw=0):
     return folder(a, f)
 
 
-def box(name, x0, x1, y0, y1, z0, z1, f, black=False):
+def box(name, x0, x1, y0, y1, z0, z1, f, black=False, mat=None):
     a = execute_tool(S + 'add_to_scene_from_asset', json.dumps({
         'asset_path': '/Engine/BasicShapes/Cube', 'name': name,
         'xform': {'location': {'x': (x0 + x1) / 2, 'y': (y0 + y1) / 2, 'z': (z0 + z1) / 2},
                   'rotation': {'pitch': 0, 'yaw': 0, 'roll': 0},
                   'scale': {'x': (x1 - x0) / 100, 'y': (y1 - y0) / 100, 'z': (z1 - z0) / 100}}}))['returnValue']
-    if black:
-        props({'refPath': a['refPath'] + '.StaticMeshComponent0'}, {'OverrideMaterials': [BLACK]})
+    if black or mat:
+        props({'refPath': a['refPath'] + '.StaticMeshComponent0'}, {'OverrideMaterials': [BLACK if black else MATS + mat + '.' + mat]})
     return folder(a, f)
 
 
+MATS = '/Game/Endless/Materials/'
+ZD = '/Game/ZD_Kitchen_Collection01/Meshs/'  # Tableware / Appliances Collection (ZenDen-Digital, Fab)
 FF = '/Game/FreeFurniturePack/Meshes/'  # Free Furniture Pack (Next Level 3D, Fab); pivots sit bottom-center
 BP = '/Game/FreeFurniturePack/Blueprints/'  # the pack's assembled furniture: doors and drawers on their meshes
 # Pack fronts face local +Y: yaw 90 faces -X (right walls), -90 faces +X (left walls), 180 faces -Y
 
 
-def mesh(name, asset, x, y, yaw, f, z=0):
+def mesh(name, asset, x, y, yaw, f, z=0, scale=(1, 1, 1)):
     a = execute_tool(S + 'add_to_scene_from_asset', json.dumps({
         'asset_path': asset if asset.startswith('/') else FF + asset, 'name': name,
-        'xform': {'location': {'x': x, 'y': y, 'z': z}, 'rotation': {'pitch': 0, 'yaw': yaw, 'roll': 0}}}))['returnValue']
+        'xform': {'location': {'x': x, 'y': y, 'z': z}, 'rotation': {'pitch': 0, 'yaw': yaw, 'roll': 0},
+                  'scale': dict(zip('xyz', scale))}}))['returnValue']
     return folder(a, f)
 
 
@@ -101,6 +104,24 @@ def anomaly(name, first, last, f, show=(), hide=()):
     return a
 
 
+def kitchen_set(f):
+    # Along the right wall (inner face x=1030), from the top wall: fridge, cabinet, sink, dishwasher, hob, cabinet
+    x0, x1, top, bottom = 970, 1030, -190, 292
+    mesh('Fridge', ZD + 'Fridge/BP_Fridge', x1 - 38, top + 58, 180, f, z=102)
+    run0 = top + 117
+    box('Kitchen_Plinth', x0 + 5, x1, run0, bottom, 0, 10, f, mat='MI_Kitchen_Dark')
+    box('Kitchen_Cabinets_a', x0, x1, run0, 67, 10, 87, f, mat='MI_Kitchen_Facade')
+    mesh('Dishwasher', ZD + 'Dishwasher/BP_DishWasher', x1 - 30, 99, 90, f)
+    box('Kitchen_Cabinets_b', x0, x1, 131, bottom, 10, 87, f, mat='MI_Kitchen_Facade')
+    box('Countertop', x0 - 2, x1, run0, bottom, 87, 91, f, mat='MI_Countertop')
+    box('Sink', x0 + 10, x1 - 12, 0, 50, 91, 92, f, mat='MI_Kitchen_Dark')
+    box('Hob', x0 + 8, x1 - 8, 136, 186, 91, 91.5, f, mat='MI_Kitchen_Dark')
+    box('Kitchen_Upper', x1 - 35, x1, run0, bottom, 150, 220, f, mat='MI_Kitchen_Facade')
+    mesh('Microwave', ZD + 'Microwave/BP_Microwave', x1 - 28, 240, 90, f, z=91)
+    mesh('Toaster', ZD + 'Toaster/BP_Toaster', x1 - 20, 280, 90, f, z=91)
+    mesh('KnifeBlock', ZD + 'KnifeBlock/BP_KnifeBlock', x1 - 15, -50, 90, f, z=91)
+
+
 def remove_folder(f):
     if f not in execute_tool(S + 'get_folders', '{}')['returnValue']:
         return 0
@@ -121,28 +142,32 @@ def run():
     # Bedroom: double bed headboard to the bathroom wall, nightstand with lamp and the stopped clock
     bed = mesh('Bed', 'SM_Modern_Bed_2', 517, 1080, 0, n)
     mesh('Nightstand', 'SM_Bed_Table', 412, 925, 0, n)
-    mesh('Bedside_Lamp', 'SM_Table_Lamp', 422, 912, 0, n, z=61)
+    mesh('Bedside_Lamp', 'SM_Table_Lamp', 422, 912, 0, n, z=61)  # the pack's Bed_Lamp meshes are wall lamps
     box('Clock_Body', 400, 414, 928, 952, 61, 76, n)
     clock = text('Clock_2359', '23:59', 415, 940, 68, 0, 7, CLOCK, n)
-    mesh('Bedroom_Commode', BP + 'BP_Classic_Commode', 1250, 900, 90, n)
+    mesh('Bedroom_Wardrobe', BP + 'BP_Modern_Cupboard', 1137, 1029, 90, n)  # built-in along the right wall
     mesh('Picture_Bed', 'SM_Classic_Picture', 389, 1080, 0, n, z=150)
+    # Renovated rooms get the pack's modern furniture (GDD 4.1); old pieces stay only in the corridors
     # Hallway: wardrobe and the phone on a commode, both on the right wall
-    wardrobe = mesh('Wardrobe', BP + 'BP_Classic_Cupboard', 705, -122, 90, n)
+    # shortcut: the 2.8 m sliding wardrobe squeezed to 1.7 x 2.3 m to fit beside the phone commode; a narrower model later
+    mesh('Wardrobe', BP + 'BP_Modern_Cupboard', 700, -100, 90, n, scale=(0.6, 1, 0.9))
     mesh('PhoneTable', BP + 'BP_Classic_Commode', 715, 30, 90, n)
     phone = box('Phone', 705, 725, 20, 40, 100, 110, n)
-    mesh('Picture_Hall', 'SM_Classic_Picture', 536, 0, 0, n, z=160)
-    # Living room: sofa on the top wall, coffee table, TV on a commode by the left wall
-    mesh('Sofa', 'SM_Classic_Leather_Sofa', 176, -130, 0, n)
+    mesh('Picture_Hall', 'SM_Classic_Picture', 536, -60, 0, n, z=160)
+    # Living room: sofa back to the top wall, coffee table, TV on a commode by the left wall; the armchair stays right of the corridor's line of sight to the stage 4 figure
+    sofa = mesh('Sofa', 'SM_Modern_Sofa_2', 176, -93, 90, n)
+    armchair = mesh('Armchair', 'SM_Modern_Armchair', 445, -10, 90, n)
     mesh('Coffee_Table', 'SM_Coffee_Table', 176, -10, 0, n)
     mesh('TV_Stand', 'SM_Commode', 40, 13, -90, n)
     mesh('TV', 'SM_TV', 40, 13, -90, n, z=88)
     # Computer nook: desk and office chair
-    mesh('Desk', 'SM_Old_Table', 55, 219, -90, n)
+    mesh('Desk', 'SM_Modern_Table', 55, 219, -90, n)
     mesh('Desk_Chair', 'SM_Modern_Office_chair', 125, 219, 90, n)
-    # Kitchen: dining table and two chairs (the counter is a blockout box)
-    mesh('Dining_Table', 'SM_Old_Table', 860, 0, 0, n)
-    mesh('Dining_Chair_1', 'SM_Old_Chair', 860, -75, 0, n)
-    mesh('Dining_Chair_2', 'SM_Old_Chair', 860, 75, 180, n)
+    # Kitchen: table along the narrow room, the kitchen set along the right wall
+    mesh('Dining_Table', 'SM_Modern_Table', 830, 40, 90, n)
+    mesh('Dining_Chair_1', 'SM_Modern_Chair_1', 830, -90, 0, n)
+    mesh('Dining_Chair_2', 'SM_Modern_Chair_1', 830, 170, 180, n)
+    kitchen_set(n)
     # Bathroom and lower corridor
     mesh('Toilet', 'SM_Toilet', 40, 1175, -90, n)
     mesh('Bathtub', 'SM_Bathtub', 250, 1160, 180, n)
@@ -185,8 +210,8 @@ def run():
                                                       text('Phone_Label', 'звонит: Мама [E]', 735, 30, 140, 180, 14, LABEL, f)])
     hint4 = spawn('/Script/Endless.StageHint', 'Hint_Phone', 715, 30, 150, f)
     props(hint4, {'Stage': 4, 'MinRepeat': 0, 'Sound': RING, 'Interval': 2.5})  # the phone rings from the stage start
-    anomaly('A4_Moved', 4, 4, f, hide=[bed, wardrobe], show=[mesh('Bed_Moved', 'SM_Modern_Bed_2', 1130, 1080, 180, f),
-                                                             mesh('Wardrobe_Moved', BP + 'BP_Classic_Cupboard', 450, 20, 0, f)])
+    anomaly('A4_Moved', 4, 4, f, hide=[bed, sofa, armchair], show=[mesh('Bed_Moved', 'SM_Modern_Bed_2', 520, 1080, 90, f),
+                                                                   mesh('Sofa_Moved', 'SM_Modern_Sofa_2', 420, -60, 180, f)])
     # Deep in the living room, in line with the upper corridor: seen while walking it toward the living room
     anomaly('A4_Figure', 4, 4, f, show=[box('Figure_Living', 327, 367, -120, -80, 0, 220, f, black=True),
                                         rim_light('Figure_Living_Rim', 347, -175, 200, f)])

@@ -29,6 +29,10 @@ FINISHES = {
     'MI_Plaster':         ('Fresh_Wall_Plaster', None, 250, 0.9, (1.0, 1.0, 1.0)),  # ceilings, stairwell
     'MI_Baseboard_New':   ('Fresh_Wall_Plaster', None, 100, 0.4, (1.0, 1.0, 1.0)),
     'MI_Baseboard_Old':   ('Herringbone_Parquet', None, 60, 0.6, (0.55, 0.4, 0.28)),
+    # Kitchen set built from boxes in stages_week2.py
+    'MI_Kitchen_Facade':  ('Fresh_Wall_Plaster', None, 250, 0.25, (0.95, 0.95, 0.93)),
+    'MI_Countertop':      ('Wooden_Floor', 'Herringbone_Parquet', 200, 0.4, (0.6, 0.5, 0.4)),
+    'MI_Kitchen_Dark':    ('Fresh_Wall_Plaster', None, 250, 0.1, (0.03, 0.03, 0.03)),  # sink, hob, plinth
 }
 
 

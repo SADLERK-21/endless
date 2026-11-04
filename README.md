@@ -17,6 +17,7 @@
 - **Free Furniture Pack** (Next Level 3D) — мебель квартиры, папка `Content/FreeFurniturePack`.
 - **Old Wallpaper**, **Framed Wallpaper**, **Fresh Wall Plaster**, **Decorative Wall Paint**, **Wooden Floor**, **Seychelles Beige Marble Tiles** (Quixel Megascans) и **Herringbone Parquet** — стены, полы и потолок, папка `Content/Fab`.
 - **Ceramic Tiles Material Pack** (JulioSillet) — плитка ванной, прихожей и кухни, папка `Content/Materials_CeramicTiles`.
+- **Tableware / Appliances Collection** (ZenDen-Digital) — холодильник, посудомойка, микроволновка и посуда на кухне, папка `Content/ZD_Kitchen_Collection01`.
 
 Материалы `Content/Endless/Materials/MI_*` ссылаются на их текстуры; после добавления ассетов перезапустите `Tools/materials_apartment.py`.
 

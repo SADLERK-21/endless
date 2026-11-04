@@ -371,9 +371,6 @@ def run():
     build_walls()
     made_thresholds = thresholds()
 
-    # Furniture is real meshes in stages_week2.py; the kitchen counter stays a box (no kitchen in the furniture pack)
-    box('Kitchen_Counter', X(890) - 70, X(890) - 10, top + 10, Y(400), 0, 90, f='Blockout/Props')
-
     # Movable lights with short radius: no stationary-overlap limit
     cx = (X(385) + X(472)) / 2
     room_y = (top + Y(413)) / 2
